@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generate Invoice | BrandVoice</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 py-10">
+  <div class="max-w-3xl mx-auto bg-white shadow-lg rounded-lg p-8">
+    <h2 class="text-2xl font-semibold text-gray-700 mb-6">Invoice Details</h2>
+    
+  <form action="{{ url_for('generate') }}" method="POST" class="space-y-4" enctype="multipart/form-data">
+      
+      <!-- Business Info -->
+      <div>
+        <label class="block text-sm font-medium text-gray-600">Business/Brand Name</label>
+        <input type="text" name="business_name" required class="w-full mt-1 p-2 border rounded-lg">
+      </div>
+
+        <div>
+        <label class="block text-sm font-medium text-gray-600">Invoice Number</label>
+        <input type="text" name="Invoice_number" required class="w-full mt-1 p-2 border rounded-lg">
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-600">Address</label>
+          <input type="text" name="address" class="w-full mt-1 p-2 border rounded-lg">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600">Phone Number</label>
+          <input type="text" name="phone" class="w-full mt-1 p-2 border rounded-lg">
+        </div>
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium text-gray-600">Email</label>
+        <input type="email" name="email" class="w-full mt-1 p-2 border rounded-lg">
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium text-gray-600">Brand Logo</label>
+        <input type="file" name="logo" accept="image/*" class="w-full mt-1 p-2 border rounded-lg">
+      </div>
+
+      <!-- Client Info -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-600">Client Name</label>
+          <input type="text" name="client_name" class="w-full mt-1 p-2 border rounded-lg">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600">Client Contact Info</label>
+          <input type="text" name="client_contact" class="w-full mt-1 p-2 border rounded-lg">
+        </div>
+      </div>
+
+<!-- Invoice Items Table -->
+<div>
+  <label class="block text-sm font-medium text-gray-600 mb-2">Invoice Items</label>
+  
+  <table class="w-full border border-gray-300 rounded-lg text-sm">
+    <thead class="bg-gray-100">
+      <tr>
+        <th class="p-2 border">Item</th>
+        <th class="p-2 border">Price</th>
+        <th class="p-2 border">Quantity</th>
+        <th class="p-2 border">Subtotal</th>
+        <th class="p-2 border">Action</th>
+      </tr>
+    </thead>
+    <tbody id="items-table">
+      <tr>
+        <td><input type="text" name="items[0][name]" class="w-full p-2 border rounded"></td>
+        <td><input type="number" step="0.01" name="items[0][price]" class="w-full p-2 border rounded"></td>
+        <td><input type="number" name="items[0][quantity]" class="w-full p-2 border rounded"></td>
+        <td><input type="number" step="0.01" name="items[0][subtotal]" class="w-full p-2 border rounded"></td>
+        <td class="text-center">
+          <button type="button" onclick="removeRow(this)" class="text-red-600">✖</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <button type="button" 
+          onclick="addRow()" 
+          class="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition">
+    ➕ Add Item
+  </button>
+</div>
+
+<script>
+  let rowCount = 1;
+
+  function addRow() {
+    const table = document.getElementById("items-table");
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input type="text" name="items[${rowCount}][name]" class="w-full p-2 border rounded"></td>
+      <td><input type="number" step="0.01" name="items[${rowCount}][price]" class="w-full p-2 border rounded"></td>
+      <td><input type="number" name="items[${rowCount}][quantity]" class="w-full p-2 border rounded"></td>
+      <td><input type="number" step="0.01" name="items[${rowCount}][subtotal]" class="w-full p-2 border rounded"></td>
+      <td class="text-center">
+        <button type="button" onclick="removeRow(this)" class="text-red-600">✖</button>
+      </td>
+    `;
+    table.appendChild(row);
+    rowCount++;
+  }
+
+  function removeRow(button) {
+    button.parentElement.parentElement.remove();
+  }
+</script>
+
+      <!-- Payment Instructions / Bank Details -->
+      <div>
+        <label class="block text-sm font-medium text-gray-600">Payment Instructions / Bank Details</label>
+        <textarea name="payment_instructions" rows="4" placeholder="e.g., Bank: XYZ Bank, Account Name: BrandVoice Ltd, Account Number: 0123456789" class="w-full mt-1 p-2 border rounded-lg"></textarea>
+      </div>
+
+      <!-- Thank You Note -->
+      <div>
+        <label class="block text-sm font-medium text-gray-600">Thank You Note</label>
+        <textarea name="thank_you_note" rows="3" placeholder="Thank you for your business!" class="w-full mt-1 p-2 border rounded-lg"></textarea>
+      </div>
+
+
+      <!-- Template Choice -->
+      <div>
+        <label class="block text-sm font-medium text-gray-600">Choose Template</label>
+        <select name="template" class="w-full mt-1 p-2 border rounded-lg">
+          <option value="invoice_template_1.html">Template 1</option>
+          <option value="invoice_template_2.html">Template 2</option>
+          <option value="invoice_template_3.html">Template 3</option>
+        </select>
+      </div>
+      
+      <button type="submit" 
+              class="w-full py-3 mt-6 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition">
+        Preview Invoice
+      </button>
+    </form>
+  </div>
+</body>
+</html>
