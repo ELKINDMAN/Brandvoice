@@ -1,65 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BrandVoice | Home</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="min-h-screen relative overflow-hidden bg-gradient-to-br from-sky-50 via-white to-indigo-50">
-  <!-- Soft gradient orbs -->
-  <div class="pointer-events-none absolute -z-10 inset-0 overflow-hidden">
-    <div class="absolute -top-40 -left-20 h-96 w-96 rounded-full bg-gradient-to-br from-indigo-300/20 to-fuchsia-300/10 blur-3xl"></div>
-    <div class="absolute -bottom-32 -right-10 h-[28rem] w-[28rem] rounded-full bg-gradient-to-tr from-sky-300/20 to-emerald-300/10 blur-3xl"></div>
+<body class="bg-gray-100 h-screen flex items-center justify-center">
+  <div class="text-center">
+    <h1 class="text-4xl font-bold text-gray-800 mb-6">Welcome to BrandVoice</h1>
+    <a href="{{ url_for('generate') }}" 
+       class="px-6 py-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition">
+       Generate Invoice
+    </a>
   </div>
-
-  <main class="flex items-center justify-center px-6 py-24">
-    <section class="max-w-4xl text-center">
-      <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900">
-        <span class="block">Build Professional Invoices</span>
-        <span class="block">in Seconds</span>
-      </h1>
-      <p class="mt-4 text-lg md:text-xl text-slate-600">
-        BrandVoice is a lightweight Flask app with Tailwind-powered templates. Create clean,
-        print-ready invoices with a guided form that collects all your details.
-      </p>
-      <p class="mt-2 text-base md:text-lg font-medium text-slate-700">
-        Make your brand more standard and professional.
-      </p>
-
-      <!-- Feature mini-cards -->
-      <div class="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div class="flex flex-col items-center gap-2">
-          <!-- Users Icon -->
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-8 w-8 text-indigo-600">
-            <path d="M15 19a6 6 0 10-12 0v1h12v-1zM9 13a4 4 0 100-8 4 4 0 000 8zm7.5-7a3.5 3.5 0 11-3.11 5.11A7.5 7.5 0 0119.5 19H21v-1a6 6 0 00-4.5-5.79A3.5 3.5 0 0116.5 6z"/>
-          </svg>
-          <span class="text-sm font-semibold text-slate-700">Client Info</span>
-        </div>
-        <div class="flex flex-col items-center gap-2">
-          <!-- Document Icon -->
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-8 w-8 text-fuchsia-600">
-            <path d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h7a2 2 0 002-2v-5h3l-5-5V4a2 2 0 00-2-2H6z"/>
-          </svg>
-          <span class="text-sm font-semibold text-slate-700">Invoice Form</span>
-        </div>
-        <div class="flex flex-col items-center gap-2">
-          <!-- Currency Icon -->
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-8 w-8 text-emerald-600">
-            <path d="M12 3a1 1 0 011 1v1.07A4.5 4.5 0 0116.5 9H15a3 3 0 10-3 3h1a1 1 0 010 2h-1a5 5 0 110-10V4a1 1 0 011-1zm1 9h2a5 5 0 01-5 5v1a1 1 0 11-2 0v-1.07A4.5 4.5 0 017.5 12H9a3 3 0 106 0z"/>
-          </svg>
-          <span class="text-sm font-semibold text-slate-700">Payment Ready</span>
-        </div>
-      </div>
-
-      <!-- CTA -->
-      <div class="mt-10">
-        <a href="{{ url_for('generate') }}"
-           class="inline-flex items-center justify-center px-7 py-3 text-white font-semibold rounded-full shadow-lg shadow-indigo-500/20 bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2">
-          Generate Invoice
-        </a>
-      </div>
-    </section>
-  </main>
 </body>
 </html>
