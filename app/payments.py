@@ -1,0 +1,37 @@
+# Payment integration stubs for Paystack and Flutterwave
+# Fill in with real API calls later.
+
+import os
+import requests
+
+class Paystack:
+    def __init__(self, secret_key: str):
+        self.secret_key = secret_key
+        self.base_url = 'https://api.paystack.co'
+
+    def initialize_transaction(self, email: str, amount_kobo: int, callback_url: str):
+        url = f'{self.base_url}/transaction/initialize'
+        headers = {'Authorization': f'Bearer {self.secret_key}', 'Content-Type': 'application/json'}
+        payload = { 'email': email, 'amount': amount_kobo, 'callback_url': callback_url }
+        resp = requests.post(url, json=payload, headers=headers, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+
+class Flutterwave:
+    def __init__(self, secret_key: str):
+        self.secret_key = secret_key
+        self.base_url = 'https://api.flutterwave.com/v3'
+
+    def initialize_payment(self, tx_ref: str, amount: str, currency: str, redirect_url: str, customer: dict):
+        url = f'{self.base_url}/payments'
+        headers = {'Authorization': f'Bearer {self.secret_key}', 'Content-Type': 'application/json'}
+        payload = {
+            'tx_ref': tx_ref,
+            'amount': amount,
+            'currency': currency,
+            'redirect_url': redirect_url,
+            'customer': customer,
+        }
+        resp = requests.post(url, json=payload, headers=headers, timeout=30)
+        resp.raise_for_status()
+        return resp.json()

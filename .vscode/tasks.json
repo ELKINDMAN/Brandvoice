@@ -1,0 +1,29 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Init and run DB migrations",
+			"type": "shell",
+			"command": "$env:FLASK_APP='app.py'; $env:FLASK_ENV='development'; python -m flask db init; python -m flask db migrate -m \"initial\"; python -m flask db upgrade",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Re-run migrations",
+			"type": "shell",
+			"command": "$env:FLASK_APP='app.py'; $env:FLASK_ENV='development'; python -m flask db migrate -m \"auto\"; python -m flask db upgrade",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Create baseline revision and stamp DB",
+			"type": "shell",
+			"command": "$env:FLASK_APP='app.py'; $env:FLASK_ENV='development'; python -m flask db revision -m \"baseline\"; python -m flask db stamp head; python -m flask db upgrade",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}
