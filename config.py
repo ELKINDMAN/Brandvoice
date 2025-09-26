@@ -11,7 +11,7 @@ class Config:
 
     # Payment keys (set via env in production)
     PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY", "")
-    FLW_SECRET_KEY = os.environ.get("FLW_SECRET_KEY", "")
+    FLW_SECRET_KEY = os.environ.get("FLW_SECRET_KEY", "FLWSECK_TEST-940c1cb94c158cf205426a386210638e-X")
 
 class DevConfig(Config):
     DEBUG = True
