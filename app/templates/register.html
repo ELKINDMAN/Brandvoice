@@ -7,8 +7,21 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <div class="fixed top-4 inset-x-0 flex flex-col items-center space-y-2 z-50" id="flash-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="px-4 py-2 rounded shadow text-sm flex items-start gap-3 flash-msg {{ category }} bg-white border" data-category="{{ category }}">
+            <span class="flex-1">{{ message }}</span>
+            <button class="text-gray-500 hover:text-gray-700" onclick="this.parentElement.remove()">&times;</button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
   <form method="POST" class="bg-white p-8 rounded-lg shadow-lg w-full max-w-sm">
     <h2 class="text-2xl font-semibold mb-6">Create Account</h2>
+    <div class="p-3 mb-4 bg-indigo-50 border border-indigo-200 text-indigo-700 text-sm rounded">You have 7 days free trial. No card required.</div>
     <label class="block text-sm font-medium text-gray-600">Email</label>
     <input type="email" name="email" class="w-full mt-1 p-2 border rounded-lg" required />
     <label class="block text-sm font-medium text-gray-600 mt-4">Password</label>
@@ -17,4 +30,12 @@
     <p class="text-sm text-gray-600 mt-4">Already have an account? <a href="{{ url_for('auth.login') }}" class="text-blue-600">Login</a></p>
   </form>
 </body>
+<script>
+  setTimeout(()=>{
+    document.querySelectorAll('.flash-msg').forEach(el=>{
+      el.classList.add('opacity-0','transition');
+      setTimeout(()=>el.remove(),500);
+    })
+  },3000);
+</script>
 </html>

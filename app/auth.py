@@ -1,7 +1,12 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from .models import db, User
+from itsdangerous import URLSafeTimedSerializer
+from datetime import datetime, timedelta
+import secrets
+from .__init__ import mail
+from flask_mail import Message
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -15,7 +20,8 @@ def login():
         user = User.query.filter_by(email=email).first()
         if user and check_password_hash(user.password_hash, password):
             login_user(user, remember=True)
-            return redirect(url_for('main.dashboard'))
+            # Redirect straight to payment page (auto subscription initiation)
+            return redirect(url_for('main.subscribe_pay'))
         flash('Invalid credentials', 'error')
     return render_template('login.html')
 
@@ -29,12 +35,68 @@ def register():
         if User.query.filter_by(email=email).first():
             flash('Email already registered', 'error')
         else:
-            user = User(email=email, password_hash=generate_password_hash(password))
+            user = User(email=email, password_hash=generate_password_hash(password), trial_start=datetime.utcnow())
             db.session.add(user)
             db.session.commit()
             login_user(user, remember=True)
             return redirect(url_for('main.dashboard'))
     return render_template('register.html')
+
+
+RESET_EXP_MINUTES = 30
+
+@auth_bp.route('/forgot', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip().lower()
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            # Generic response to avoid user enumeration
+            flash('Invalid email address.', 'danger')
+            return redirect(url_for('auth.forgot_password'))
+        token = secrets.token_urlsafe(48)
+        user.password_reset_token = token
+        user.password_reset_sent_at = datetime.utcnow()
+        db.session.commit()
+        reset_link = url_for('auth.reset_password', token=token, _external=True)
+        try:
+            msg = Message(
+                subject='Password Reset Request',
+                recipients=[email],
+                body=f'Click the link to reset your password (expires in {RESET_EXP_MINUTES} minutes): {reset_link}'
+            )
+            if current_app.config.get('MAIL_DEFAULT_SENDER'):
+                msg.sender = current_app.config['MAIL_DEFAULT_SENDER']
+            mail.send(msg)
+        except Exception as e:
+            current_app.logger.warning(f'Mail send failed: {e}')
+        flash('Password reset link has been sent to email. Check your email.', 'info')
+        return redirect(url_for('auth.forgot_password'))
+    return render_template('forgot_password.html')
+
+@auth_bp.route('/reset/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    user = User.query.filter_by(password_reset_token=token).first()
+    if not user:
+        flash('Invalid or expired reset link.', 'error')
+        return redirect(url_for('auth.forgot_password'))
+    # Expire after RESET_EXP_MINUTES
+    if user.password_reset_sent_at and datetime.utcnow() - user.password_reset_sent_at > timedelta(minutes=RESET_EXP_MINUTES):
+        flash('Reset link expired. Please request a new one.', 'error')
+        return redirect(url_for('auth.forgot_password'))
+    if request.method == 'POST':
+        pw1 = request.form.get('password')
+        pw2 = request.form.get('password_confirm')
+        if not pw1 or pw1 != pw2:
+            flash('Passwords do not match.', 'error')
+        else:
+            user.password_hash = generate_password_hash(pw1)
+            user.password_reset_token = None
+            user.password_reset_sent_at = None
+            db.session.commit()
+            flash('Password updated. You can now login.', 'success')
+            return redirect(url_for('auth.login'))
+    return render_template('reset_password.html', token=token)
 
 @auth_bp.route('/logout')
 @login_required
