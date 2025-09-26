@@ -7,6 +7,18 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <div class="fixed top-4 inset-x-0 flex flex-col items-center space-y-2 z-50" id="flash-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="px-4 py-2 rounded shadow text-sm flex items-start gap-3 flash-msg {{ category }} bg-white border" data-category="{{ category }}">
+            <span class="flex-1">{{ message }}</span>
+            <button class="text-gray-500 hover:text-gray-700" onclick="this.parentElement.remove()">&times;</button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
   <form method="POST" class="bg-white p-8 rounded-lg shadow-lg w-full max-w-sm">
     <h2 class="text-2xl font-semibold mb-6">Login</h2>
     <label class="block text-sm font-medium text-gray-600">Email</label>
@@ -14,7 +26,18 @@
     <label class="block text-sm font-medium text-gray-600 mt-4">Password</label>
     <input type="password" name="password" class="w-full mt-1 p-2 border rounded-lg" required />
     <button class="w-full py-2 mt-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Sign In</button>
-    <p class="text-sm text-gray-600 mt-4">No account? <a href="{{ url_for('auth.register') }}" class="text-blue-600">Register</a></p>
+    <div class="flex justify-between text-sm text-gray-600 mt-4">
+      <a href="{{ url_for('auth.forgot_password') }}" class="text-blue-600">Forgot password?</a>
+      <a href="{{ url_for('auth.register') }}" class="text-blue-600">Register</a>
+    </div>
   </form>
 </body>
+<script>
+  setTimeout(()=>{
+    document.querySelectorAll('.flash-msg').forEach(el=>{
+      el.classList.add('opacity-0','transition');
+      setTimeout(()=>el.remove(),500);
+    })
+  },3000);
+</script>
 </html>

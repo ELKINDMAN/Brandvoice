@@ -7,6 +7,18 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
+  <div class="fixed top-4 inset-x-0 flex flex-col items-center space-y-2 z-50" id="flash-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="px-4 py-2 rounded shadow text-sm flex items-start gap-3 flash-msg {{ category }} bg-white border" data-category="{{ category }}">
+            <span class="flex-1">{{ message }}</span>
+            <button class="text-gray-500 hover:text-gray-700" onclick="this.parentElement.remove()">&times;</button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
   <nav class="bg-white shadow">
     <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
       <div class="text-lg font-semibold">BrandVoice</div>
@@ -19,6 +31,22 @@
   <main class="max-w-5xl mx-auto p-4">
     <h1 class="text-2xl font-semibold mb-4">Hello, {{ profile.business_name }}</h1>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  {% if not current_user.is_premium %}
+  <a href="{{ url_for('main.subscribe_pay') }}" class="p-4 mb-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded text-white shadow flex flex-col justify-between hover:shadow-lg transition group">
+      <div class="flex items-center justify-between">
+        <div class="font-semibold text-lg">Activate Full Access</div>
+        <span class="text-xs bg-white/20 px-2 py-1 rounded">One-time Setup</span>
+      </div>
+      <p class="mt-2 text-sm text-white/90">Unlock premium invoice features instantly{% if trial_active and days_left %}. {{ days_left }} day{% if days_left != 1 %}s{% endif %} left in trial — pay now to retain access{% endif %}.</p>
+      <div class="mt-3 inline-flex items-center gap-2 bg-white text-indigo-600 font-medium px-3 py-2 rounded group-hover:translate-x-1 transition w-max shadow-inner hover:bg-indigo-50" aria-hidden="true">
+        Pay Now &rarr;
+      </div>
+    </a>
+  {% else %}
+    <div class="p-4 mb-4 bg-blue-50 border border-blue-200 text-blue-700 rounded">
+      Premium active{% if current_user.premium_expires_at %} until {{ current_user.premium_expires_at.strftime('%Y-%m-%d') }}{% endif %}. Thank you!
+    </div>
+  {% endif %}
       <a href="{{ url_for('main.business_profile') }}" class="p-6 bg-white rounded-lg shadow hover:shadow-md transition">
         <div class="font-medium">Business Profile</div>
         {% if profile %}
@@ -38,4 +66,27 @@
     </div>
   </main>
 </body>
+</html>
+<script>
+  setTimeout(()=>{
+    document.querySelectorAll('.flash-msg').forEach(el=>{
+      el.classList.add('opacity-0','transition');
+      setTimeout(()=>el.remove(),500);
+    })
+  },3000);
+</script>
+<script>
+  // Enhance Pay Now button UX
+  const payBtn = document.querySelector('.pay-now-btn');
+  if (payBtn) {
+    payBtn.addEventListener('click', function() {
+      const loading = this.querySelector('.pay-now-loading');
+      const text = this.querySelector('.pay-now-text');
+      if (loading && text) {
+        loading.classList.remove('hidden');
+        text.classList.add('hidden');
+      }
+    });
+  }
+</script>
 </html>

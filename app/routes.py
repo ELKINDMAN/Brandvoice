@@ -1,6 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
-from .models import db, Invoice, BusinessProfile
+from .models import db, Invoice, BusinessProfile, User, Payment
+from datetime import datetime, timedelta
+import uuid
 from werkzeug.utils import secure_filename
 import os
 
@@ -14,11 +16,30 @@ def home():
 @login_required
 def dashboard():
     profile = BusinessProfile.query.filter_by(user_id=current_user.id).first()
-    return render_template('dashboard.html', user=current_user, profile=profile)
+    trial_active = current_user.trial_active() if hasattr(current_user, 'trial_active') else False
+    access_active = current_user.access_active() if hasattr(current_user, 'access_active') else False
+    days_left = None
+    if current_user.trial_start and not current_user.is_premium:
+        from datetime import datetime as _dt, timedelta as _td
+        end = current_user.trial_start + _td(days=7)
+        remaining = (end - _dt.utcnow()).days
+        days_left = remaining if remaining > 0 else 0
+    return render_template(
+        'dashboard.html',
+        user=current_user,
+        profile=profile,
+        trial_active=trial_active,
+        access_active=access_active,
+        days_left=days_left,
+    )
 
 @main_bp.route('/invoices')
 @login_required
 def invoices_list():
+    # Gate access if neither trial nor premium
+    if not current_user.access_active():
+        flash('Your trial has expired. Please subscribe to continue.', 'warning')
+        return redirect(url_for('main.subscribe_pay'))
     invoices = Invoice.query.filter_by(user_id=current_user.id).order_by(Invoice.created_at.desc()).all()
     return render_template('invoices_list.html', invoices=invoices)
 
@@ -65,3 +86,89 @@ def business_profile():
         return redirect(url_for('main.dashboard'))
 
     return render_template('business_profile.html', profile=profile)
+
+
+@main_bp.route('/subscribe/pay')
+@login_required
+def subscribe_pay():
+    if current_user.is_premium:
+        return redirect(url_for('main.dashboard'))
+    from .payments import Flutterwave
+    secret = current_app.config.get('FLW_SECRET_KEY')
+    if not secret:
+        flash('Payment gateway not configured', 'error')
+        return redirect(url_for('main.dashboard'))
+
+    base_amount_usd = 4.99  # fixed price reference
+    import requests
+    country = None
+    try:
+        ip_resp = requests.get('https://ipapi.co/json/', timeout=5)
+        if ip_resp.ok:
+            country = ip_resp.json().get('country_code')
+    except Exception as e:
+        current_app.logger.warning(f'Geo IP lookup failed: {e}')
+
+    currency = 'USD'
+    amount = base_amount_usd
+    if country == 'NG':
+        currency = 'NGN'
+        amount = round(base_amount_usd * 1600, 2)
+    elif country == 'GB':
+        currency = 'GBP'
+        amount = round(base_amount_usd * 0.78, 2)
+    elif country == 'US':
+        currency = 'USD'
+        amount = base_amount_usd
+
+    tx_ref = str(uuid.uuid4())
+    flw = Flutterwave(secret)
+    redirect_url = url_for('main.payment_callback', _external=True)
+    customer = {'email': current_user.email}
+    payment_options = 'card,banktransfer,applepay,googlepay'
+    resp = flw.initialize_payment(
+        tx_ref,
+        f"{amount}",
+        currency,
+        redirect_url,
+        customer,
+        payment_options=payment_options,
+        meta={'user_id': current_user.id},
+        customizations={'title': 'BrandVoice Subscription', 'description': 'Access premium invoice features'}
+    )
+    p = Payment(user_id=current_user.id, tx_ref=tx_ref, amount=amount, currency=currency)
+    db.session.add(p)
+    db.session.commit()
+    link = resp.get('data', {}).get('link')
+    if link:
+        return redirect(link)
+    flash('Failed to start payment', 'error')
+    return redirect(url_for('main.dashboard'))
+
+@main_bp.route('/payment/callback')
+def payment_callback():
+    tx_ref = request.args.get('tx_ref') or request.args.get('txRef')
+    status = request.args.get('status')
+    if not tx_ref:
+        flash('Missing transaction reference.', 'error')
+        return redirect(url_for('main.dashboard'))
+    p = Payment.query.filter_by(tx_ref=tx_ref).first()
+    if not p:
+        flash('Unknown transaction.', 'error')
+        return redirect(url_for('main.dashboard'))
+    if status == 'successful':
+        p.status = 'successful'
+        # Grant premium 30 days for now
+        user = User.query.get(p.user_id)
+        user.is_premium = True
+        user.premium_expires_at = datetime.utcnow() + (datetime.utcnow() - datetime.utcnow())  # placeholder; extend below
+        # Simple extend 30 days
+        user.premium_expires_at = datetime.utcnow() + timedelta(days=30)
+        db.session.commit()
+        flash('Subscription activated!', 'success')
+        return redirect(url_for('main.dashboard'))
+    else:
+        p.status = 'failed'
+        db.session.commit()
+        flash('Payment not successful.', 'error')
+        return redirect(url_for('main.dashboard'))

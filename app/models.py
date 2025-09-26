@@ -1,6 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
-from datetime import datetime
+from datetime import datetime, timedelta
 
 db = SQLAlchemy()
 
@@ -9,8 +9,30 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Trial & subscription fields
+    trial_start = db.Column(db.DateTime)  # set at registration
+    is_premium = db.Column(db.Boolean, default=False)
+    premium_expires_at = db.Column(db.DateTime)
+    # Password reset fields
+    password_reset_token = db.Column(db.String(255))
+    password_reset_sent_at = db.Column(db.DateTime)
     business_profile = db.relationship('BusinessProfile', backref='owner', uselist=False)
     invoices = db.relationship('Invoice', backref='user', lazy=True)
+
+    def trial_active(self) -> bool:
+        if self.is_premium:
+            return False  # premium overrides trial display
+        if not self.trial_start:
+            return False
+        return datetime.utcnow() < self.trial_start + timedelta(days=7)
+
+    def access_active(self) -> bool:
+        # Either within trial or premium active
+        if self.is_premium:
+            if self.premium_expires_at is None:
+                return True
+            return datetime.utcnow() < self.premium_expires_at
+        return self.trial_active()
 
 class BusinessProfile(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -32,6 +54,16 @@ class Invoice(db.Model):
     total_amount = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     template_name = db.Column(db.String(100), default='invoice_template_1.html')
+
+class Payment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    tx_ref = db.Column(db.String(255), unique=True, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(10), nullable=False)
+    status = db.Column(db.String(50), default='initialized')  # initialized, successful, failed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class InvoiceItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)

@@ -22,7 +22,17 @@ class Flutterwave:
         self.secret_key = secret_key
         self.base_url = 'https://api.flutterwave.com/v3'
 
-    def initialize_payment(self, tx_ref: str, amount: str, currency: str, redirect_url: str, customer: dict):
+    def initialize_payment(
+        self,
+        tx_ref: str,
+        amount: str,
+        currency: str,
+        redirect_url: str,
+        customer: dict,
+        payment_options: str = None,
+        meta: dict | None = None,
+        customizations: dict | None = None,
+    ):
         url = f'{self.base_url}/payments'
         headers = {'Authorization': f'Bearer {self.secret_key}', 'Content-Type': 'application/json'}
         payload = {
@@ -32,6 +42,12 @@ class Flutterwave:
             'redirect_url': redirect_url,
             'customer': customer,
         }
+        if payment_options:
+            payload['payment_options'] = payment_options  # e.g. "card,banktransfer,applepay,googlepay"
+        if meta:
+            payload['meta'] = meta
+        if customizations:
+            payload['customizations'] = customizations
         resp = requests.post(url, json=payload, headers=headers, timeout=30)
         resp.raise_for_status()
         return resp.json()
