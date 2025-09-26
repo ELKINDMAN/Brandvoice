@@ -94,10 +94,20 @@ def subscribe_pay():
     if current_user.is_premium:
         return redirect(url_for('main.dashboard'))
     from .payments import Flutterwave
-    secret = current_app.config.get('FLW_SECRET_KEY')
-    if not secret:
-        flash('Payment gateway not configured', 'error')
+    secret = (current_app.config.get('FLW_SECRET_KEY') or '').strip()
+    # Defensive validation & logging
+    def _mask(k: str):
+        if not k:
+            return 'EMPTY'
+        if len(k) <= 8:
+            return '****'
+        return k[:6] + '...' + k[-4:]
+    if not secret or secret.lower() in {'changeme','none'}:
+        current_app.logger.error('Flutterwave key missing or placeholder. Value=%s', _mask(secret))
+        flash('Payment gateway not configured.', 'error')
         return redirect(url_for('main.dashboard'))
+    if not secret.startswith('FLWSECK_'):
+        current_app.logger.warning('FLW secret does not start with expected prefix; proceeding anyway. Masked=%s', _mask(secret))
 
     base_amount_usd = 4.99  # fixed price reference
     import requests
@@ -126,20 +136,30 @@ def subscribe_pay():
     redirect_url = url_for('main.payment_callback', _external=True)
     customer = {'email': current_user.email}
     payment_options = 'card,banktransfer,applepay,googlepay'
-    resp = flw.initialize_payment(
-        tx_ref,
-        f"{amount}",
-        currency,
-        redirect_url,
-        customer,
-        payment_options=payment_options,
-        meta={'user_id': current_user.id},
-        customizations={'title': 'BrandVoice Subscription', 'description': 'Access premium invoice features'}
-    )
+    try:
+        resp = flw.initialize_payment(
+            tx_ref,
+            f"{amount}",
+            currency,
+            redirect_url,
+            customer,
+            payment_options=payment_options,
+            meta={'user_id': current_user.id},
+            customizations={'title': 'BrandVoice Subscription', 'description': 'Access full invoice experience'}
+        )
+    except Exception as e:
+        current_app.logger.exception('Flutterwave init failed for tx_ref=%s currency=%s amount=%s: %s', tx_ref, currency, amount, e)
+        flash('Could not reach payment gateway. Please try again shortly.', 'error')
+        return redirect(url_for('main.dashboard'))
     p = Payment(user_id=current_user.id, tx_ref=tx_ref, amount=amount, currency=currency)
     db.session.add(p)
     db.session.commit()
-    link = resp.get('data', {}).get('link')
+    data = resp.get('data') if isinstance(resp, dict) else None
+    link = data.get('link') if data else None
+    if not link:
+        current_app.logger.error('Flutterwave response missing payment link. Raw=%s', resp)
+        flash('Payment initialization failed (no link).', 'error')
+        return redirect(url_for('main.dashboard'))
     if link:
         return redirect(link)
     flash('Failed to start payment', 'error')
