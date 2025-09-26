@@ -37,6 +37,10 @@ def generate_post():
         client_name = request.form.get('client_name')
         client_contact = request.form.get('client_contact')
 
+        # if not all([client_name, client_contact]):
+        #     flash('Client Name and Contact are required.', 'error')
+        #     return redirect(url_for('generate.generate_get'))
+
         # Load business profile for current user
         profile = BusinessProfile.query.filter_by(user_id=current_user.id).first()
         if not profile:
