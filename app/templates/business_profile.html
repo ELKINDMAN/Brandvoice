@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Business Profile - BrandVoice</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <nav class="bg-white shadow">
+    <div class="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="text-lg font-semibold">BrandVoice</div>
+      <div class="space-x-3">
+        <a href="{{ url_for('main.dashboard') }}" class="text-blue-600">Back to Dashboard</a>
+        <a href="{{ url_for('auth.logout') }}" class="text-red-600">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-3xl mx-auto p-4">
+    <h1 class="text-2xl font-semibold mb-4">Business Profile</h1>
+    <form action="{{ url_for('main.business_profile') }}" method="POST" enctype="multipart/form-data" class="bg-white rounded-lg shadow p-6 space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-600">Business/Brand Name</label>
+        <input type="text" name="business_name" value="{{ profile.business_name if profile else '' }}" class="w-full mt-1 p-2 border rounded-lg">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-600">Address</label>
+        <input type="text" name="address" value="{{ profile.address if profile else '' }}" class="w-full mt-1 p-2 border rounded-lg">
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-600">Phone</label>
+          <input type="text" name="phone" value="{{ profile.phone if profile else '' }}" class="w-full mt-1 p-2 border rounded-lg">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600">Email</label>
+          <input type="email" name="email" value="{{ profile.email if profile else '' }}" class="w-full mt-1 p-2 border rounded-lg">
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-600">Logo</label>
+        <input type="file" name="logo" accept="image/*" class="w-full mt-1 p-2 border rounded-lg">
+        {% if profile and profile.logo_path %}
+          <img src="{{ url_for('static', filename=profile.logo_path) }}" alt="Logo" class="mt-2 h-16 object-contain">
+        {% endif %}
+      </div>
+      <div class="flex justify-end gap-2">
+        <a href="{{ url_for('main.dashboard') }}" class="px-4 py-2 bg-gray-100 rounded">Cancel</a>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
+      </div>
+    </form>
+  </main>
+</body>
+</html>

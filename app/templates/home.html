@@ -10,10 +10,8 @@
   <div class="text-center">
     <h1 class="text-4xl font-bold text-gray-800 mb-6">Build Professional Invoices<br>in Seconds</h1>
     <h5 class="text-gray-600 mb-6">make your brand more standard and professional</h5>
-    <a href="{{ url_for('generate') }}" 
-       class="px-6 py-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition">
-       Generate Invoice
-    </a>
+    <a href="{{ url_for('auth.login') }}" class="px-6 py-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition">Login</a>
+    <a href="{{ url_for('auth.register') }}" class="ml-3 px-6 py-3 bg-gray-800 text-white rounded-lg shadow-lg hover:bg-gray-900 transition">Register</a>
   </div>
 </body>
 </html>
