@@ -20,8 +20,8 @@ def login():
         user = User.query.filter_by(email=email).first()
         if user and check_password_hash(user.password_hash, password):
             login_user(user, remember=True)
-            # Redirect straight to payment page (auto subscription initiation)
-            return redirect(url_for('main.subscribe_pay'))
+            # Redirect to dashboard (no forced payment)
+            return redirect(url_for('main.dashboard'))
         flash('Invalid credentials', 'error')
     return render_template('login.html')
 
@@ -39,7 +39,8 @@ def register():
             db.session.add(user)
             db.session.commit()
             login_user(user, remember=True)
-            return redirect(url_for('main.dashboard'))
+            # Show welcome modal once via query flag
+            return redirect(url_for('main.dashboard', welcome=1))
     return render_template('register.html')
 
 
@@ -51,7 +52,9 @@ def forgot_password():
         email = (request.form.get('email') or '').strip().lower()
         user = User.query.filter_by(email=email).first()
         if not user:
-            # Generic response to avoid user enumeration
+            # NOTE: Current message still discloses invalid vs valid and can enable enumeration.
+            # Consider switching to a generic success message always.
+            current_app.logger.info('Password reset requested for non-existent email=%s', email)
             flash('Invalid email address.', 'danger')
             return redirect(url_for('auth.forgot_password'))
         token = secrets.token_urlsafe(48)
@@ -59,6 +62,18 @@ def forgot_password():
         user.password_reset_sent_at = datetime.utcnow()
         db.session.commit()
         reset_link = url_for('auth.reset_password', token=token, _external=True)
+        # Pre-flight mail configuration sanity logging (masked where appropriate)
+        mail_cfg = {
+            'server': current_app.config.get('MAIL_SERVER'),
+            'port': current_app.config.get('MAIL_PORT'),
+            'use_tls': current_app.config.get('MAIL_USE_TLS'),
+            'use_ssl': current_app.config.get('MAIL_USE_SSL'),
+            'username_present': bool(current_app.config.get('MAIL_USERNAME')),
+            'password_present': bool(current_app.config.get('MAIL_PASSWORD')),
+            'default_sender': current_app.config.get('MAIL_DEFAULT_SENDER'),
+        }
+        current_app.logger.info('Initiating password reset email user_id=%s email=%s mail_cfg=%s token_prefix=%s',
+                                user.id, email, mail_cfg, token[:8])
         try:
             msg = Message(
                 subject='Password Reset Request',
@@ -68,8 +83,10 @@ def forgot_password():
             if current_app.config.get('MAIL_DEFAULT_SENDER'):
                 msg.sender = current_app.config['MAIL_DEFAULT_SENDER']
             mail.send(msg)
+            current_app.logger.info('Password reset email dispatched user_id=%s tx_token_prefix=%s', user.id, token[:8])
         except Exception as e:
-            current_app.logger.warning(f'Mail send failed: {e}')
+            # Keep token (user can retry later); log full exception stack
+            current_app.logger.exception('Mail send failed for user_id=%s email=%s: %s', user.id, email, e)
         flash('Password reset link has been sent to email. Check your email.', 'info')
         return redirect(url_for('auth.forgot_password'))
     return render_template('forgot_password.html')

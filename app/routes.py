@@ -108,34 +108,82 @@ def subscribe_pay():
         return redirect(url_for('main.dashboard'))
     if not secret.startswith('FLWSECK_'):
         current_app.logger.warning('FLW secret does not start with expected prefix; proceeding anyway. Masked=%s', _mask(secret))
-
-    base_amount_usd = 4.99  # fixed price reference
     import requests
-    country = None
-    try:
-        ip_resp = requests.get('https://ipapi.co/json/', timeout=5)
-        if ip_resp.ok:
-            country = ip_resp.json().get('country_code')
-    except Exception as e:
-        current_app.logger.warning(f'Geo IP lookup failed: {e}')
 
-    currency = 'USD'
-    amount = base_amount_usd
-    if country == 'NG':
-        currency = 'NGN'
+    # --- Currency & amount determination ---
+    base_amount_usd = 4.99  # base reference price in USD
+
+    def geo_country() -> str | None:
+        """Attempt to detect 2-letter country code with primary + fallback provider."""
+        # Respect X-Forwarded-For if behind proxy (take first IP)
+        fwd = request.headers.get('X-Forwarded-For')
+        if fwd:
+            ip = fwd.split(',')[0].strip()
+        else:
+            ip = None  # public IP detection provider will infer
+        try:
+            resp = requests.get('https://ipapi.co/json/', timeout=4)
+            if resp.ok:
+                return resp.json().get('country_code')
+        except Exception as e:
+            current_app.logger.info('Primary geo provider failed: %s', e)
+        # fallback
+        try:
+            resp2 = requests.get('https://ipwho.is/' + (ip or ''), timeout=4)
+            if resp2.ok:
+                data = resp2.json()
+                if data.get('success') is not False:
+                    return data.get('country_code') or data.get('country_code_iso2')
+        except Exception as e2:
+            current_app.logger.warning('Fallback geo provider failed: %s', e2)
+        return None
+
+    country = geo_country()
+    detected_country = country  # keep for logging/diagnostics
+
+    # Allow safe manual override via query (?currency=USD) restricted to whitelist
+    override_currency = request.args.get('currency', '').upper().strip()
+    allowed_currencies = {'USD', 'NGN', 'GBP'}
+    if override_currency and override_currency not in allowed_currencies:
+        flash('Unsupported currency override ignored.', 'warning')
+        override_currency = ''
+
+    if override_currency:
+        currency = override_currency
+    else:
+        if country == 'NG':
+            currency = 'NGN'
+        elif country == 'GB':  # United Kingdom
+            currency = 'GBP'
+        elif country == 'US':
+            currency = 'USD'
+        else:
+            # default to USD when unknown
+            currency = 'USD'
+
+    # Rough FX multipliers (TODO: replace with live FX service)
+    if currency == 'NGN':
         amount = round(base_amount_usd * 1600, 2)
-    elif country == 'GB':
-        currency = 'GBP'
+    elif currency == 'GBP':
         amount = round(base_amount_usd * 0.78, 2)
-    elif country == 'US':
-        currency = 'USD'
+    else:  # USD
         amount = base_amount_usd
+
+    # Dynamic payment options set to encourage more visible methods
+    # NOTE: Availability also depends on what is enabled on your Flutterwave dashboard + region.
+    if currency == 'NGN':
+        payment_options = 'card,banktransfer,ussd,account,qr,barter'
+    else:
+        # For USD & GBP include popular digital wallets if enabled
+        payment_options = 'card,banktransfer,applepay,googlepay'
 
     tx_ref = str(uuid.uuid4())
     flw = Flutterwave(secret)
     redirect_url = url_for('main.payment_callback', _external=True)
     customer = {'email': current_user.email}
-    payment_options = 'card,banktransfer,applepay,googlepay'
+
+    current_app.logger.info('Initializing FLW payment tx_ref=%s currency=%s amount=%s country_detected=%s override=%s options=%s',
+                            tx_ref, currency, amount, detected_country, bool(override_currency), payment_options)
     try:
         resp = flw.initialize_payment(
             tx_ref,
@@ -144,26 +192,30 @@ def subscribe_pay():
             redirect_url,
             customer,
             payment_options=payment_options,
-            meta={'user_id': current_user.id},
-            customizations={'title': 'BrandVoice Subscription', 'description': 'Access full invoice experience'}
+            meta={'user_id': current_user.id, 'detected_country': detected_country},
+            customizations={
+                'title': 'BrandVoice Subscription',
+                'description': 'Access full invoice experience',
+                'logo': ''  # could add a hosted logo URL here
+            }
         )
     except Exception as e:
         current_app.logger.exception('Flutterwave init failed for tx_ref=%s currency=%s amount=%s: %s', tx_ref, currency, amount, e)
         flash('Could not reach payment gateway. Please try again shortly.', 'error')
         return redirect(url_for('main.dashboard'))
+
+    # Persist provisional payment record
     p = Payment(user_id=current_user.id, tx_ref=tx_ref, amount=amount, currency=currency)
     db.session.add(p)
     db.session.commit()
+
     data = resp.get('data') if isinstance(resp, dict) else None
     link = data.get('link') if data else None
     if not link:
         current_app.logger.error('Flutterwave response missing payment link. Raw=%s', resp)
         flash('Payment initialization failed (no link).', 'error')
         return redirect(url_for('main.dashboard'))
-    if link:
-        return redirect(link)
-    flash('Failed to start payment', 'error')
-    return redirect(url_for('main.dashboard'))
+    return redirect(link)
 
 @main_bp.route('/payment/callback')
 def payment_callback():
