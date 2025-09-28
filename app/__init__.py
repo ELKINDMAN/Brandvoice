@@ -21,17 +21,37 @@ def create_app(config_object='config.DevConfig'):
     db.init_app(app)
     login_manager.init_app(app)
     Migrate(app, db)
-    # Mail configuration (Live Mailtrap SMTP as requested)
-    # Overriding any prior defaults explicitly
-    app.config['MAIL_SERVER'] = 'live.smtp.mailtrap.io'
+    # ------------------------------------------------------------------
+    # Legacy Mailtrap configuration (commented out for reference only)
+    # Keeping this block so we can easily revert if needed.
+    # ------------------------------------------------------------------
+    # app.config['MAIL_SERVER'] = 'live.smtp.mailtrap.io'
+    # app.config['MAIL_PORT'] = 587
+    # app.config['MAIL_USE_TLS'] = True
+    # app.config['MAIL_USE_SSL'] = False
+    # app.config['MAIL_USERNAME'] = 'api'
+    # app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+    # app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('APP_EMAIL', 'no-reply@example.com')
+
+    # ------------------------------------------------------------------
+    # Temporary Gmail SMTP configuration
+    # NOTE: Requires you to create a Google App Password (not your normal
+    # Gmail password). Set env vars GMAIL_ADDRESS and GMAIL_APP_PASSWORD.
+    # ------------------------------------------------------------------
+    gmail_address = os.environ.get('GMAIL_ADDRESS')
+    gmail_app_password = os.environ.get('GMAIL_APP_PASSWORD')
+    app.config['MAIL_SERVER'] = 'smtp.gmail.com'
     app.config['MAIL_PORT'] = 587
     app.config['MAIL_USE_TLS'] = True
     app.config['MAIL_USE_SSL'] = False
-    app.config['MAIL_USERNAME'] = 'api'
-    # Mail password pulled from environment (.env) for safety
-    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-    # Keep existing default sender env override if present, else fallback
-    app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('APP_EMAIL', 'no-reply@example.com')
+    app.config['MAIL_USERNAME'] = gmail_address
+    app.config['MAIL_PASSWORD'] = gmail_app_password
+    app.config['MAIL_DEFAULT_SENDER'] = gmail_address or os.environ.get('APP_EMAIL', 'no-reply@example.com')
+    if not gmail_address or not gmail_app_password:
+        app.logger.warning('Gmail SMTP not fully configured: missing GMAIL_ADDRESS or GMAIL_APP_PASSWORD environment variable.')
+    # ------------------------------------------------------------------
+    # End Gmail SMTP configuration
+    # ------------------------------------------------------------------
     mail.init_app(app)
 
     # Register blueprints
