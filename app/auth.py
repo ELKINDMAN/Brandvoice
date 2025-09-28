@@ -8,6 +8,10 @@ import secrets
 from .__init__ import mail
 from flask_mail import Message
 
+# NOTE: Email sending (password reset) uses the Gmail SMTP configuration defined
+# in create_app within app.__init__.py. Ensure GMAIL_ADDRESS and GMAIL_APP_PASSWORD
+# environment variables are set before triggering password reset.
+
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
