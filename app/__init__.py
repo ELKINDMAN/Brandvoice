@@ -21,14 +21,17 @@ def create_app(config_object='config.DevConfig'):
     db.init_app(app)
     login_manager.init_app(app)
     Migrate(app, db)
-    # Mail configuration (MailTrap defaults; env may override)
-    app.config.setdefault('MAIL_SERVER', 'sandbox.smtp.mailtrap.io')
-    app.config.setdefault('MAIL_PORT', 2525)
-    app.config.setdefault('MAIL_USE_TLS', True)
-    app.config.setdefault('MAIL_USE_SSL', False)
-    app.config.setdefault('MAIL_USERNAME', os.environ.get('MAIL_USERNAME'))
-    app.config.setdefault('MAIL_PASSWORD', os.environ.get('MAIL_PASSWORD'))
-    app.config.setdefault('MAIL_DEFAULT_SENDER', os.environ.get('APP_EMAIL', 'no-reply@example.com'))
+    # Mail configuration (Live Mailtrap SMTP as requested)
+    # Overriding any prior defaults explicitly
+    app.config['MAIL_SERVER'] = 'live.smtp.mailtrap.io'
+    app.config['MAIL_PORT'] = 587
+    app.config['MAIL_USE_TLS'] = True
+    app.config['MAIL_USE_SSL'] = False
+    app.config['MAIL_USERNAME'] = 'api'
+    # Mail password pulled from environment (.env) for safety
+    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+    # Keep existing default sender env override if present, else fallback
+    app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('APP_EMAIL', 'no-reply@example.com')
     mail.init_app(app)
 
     # Register blueprints
