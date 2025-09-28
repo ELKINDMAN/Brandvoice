@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from flask import current_app
+from .models import db, Subscription
 
 
 def user_can_modify_invoices(user) -> bool:
@@ -36,3 +37,33 @@ def needs_renewal_reminder(user) -> bool:
 
 def mark_reminder_sent(user):
     user.last_renewal_reminder_sent_at = datetime.utcnow()
+
+
+def ensure_subscription(user, plan_code: str, currency: str, tx_ref: str, days: int = 30):
+    """Create or extend a subscription record for a recurring plan.
+
+    If an active subscription with same plan exists, extend its period.
+    Otherwise create new subscription row. Also extends user's premium window.
+    """
+    now = datetime.utcnow()
+    sub = Subscription.query.filter_by(user_id=user.id, plan_code=plan_code, status='active').first()
+    if sub and sub.current_period_end > now:
+        base = sub.current_period_end
+        sub.current_period_end = base + timedelta(days=days)
+        sub.last_tx_ref = tx_ref
+    else:
+        period_end = now + timedelta(days=days)
+        sub = Subscription(
+            user_id=user.id,
+            plan_code=plan_code,
+            currency=currency,
+            status='active',
+            current_period_start=now,
+            current_period_end=period_end,
+            last_tx_ref=tx_ref,
+        )
+        db.session.add(sub)
+    # Align user premium window
+    from .subscription import extend_premium  # local import to avoid circular
+    extend_premium(user, days=days)
+    current_app.logger.info('ensure_subscription user_id=%s plan=%s new_period_end=%s', user.id, plan_code, sub.current_period_end.isoformat())
