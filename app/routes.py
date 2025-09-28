@@ -168,13 +168,24 @@ def subscribe_pay():
     else:  # USD
         amount = base_amount_usd
 
-    # Dynamic payment options set to encourage more visible methods
-    # NOTE: Availability also depends on what is enabled on your Flutterwave dashboard + region.
-    if currency == 'NGN':
-        payment_options = 'card,banktransfer,ussd,account,qr,barter'
+    # Plan mapping (recurring support if plan IDs present)
+    plan_map = {
+        'USD': current_app.config.get('FLW_PLAN_USD'),
+        'NGN': current_app.config.get('FLW_PLAN_NGN'),
+        'GBP': current_app.config.get('FLW_PLAN_GBP'),
+    }
+    plan_id = plan_map.get(currency)
+    recurring = bool(plan_id)
+
+    # Dynamic payment options
+    if recurring:
+        # Restrict to tokenizable methods only
+        payment_options = 'card,applepay,googlepay'
     else:
-        # For USD & GBP include popular digital wallets if enabled
-        payment_options = 'card,banktransfer,applepay,googlepay'
+        if currency == 'NGN':
+            payment_options = 'card,banktransfer,ussd,account,qr,barter'
+        else:
+            payment_options = 'card,banktransfer,applepay,googlepay'
 
     tx_ref = str(uuid.uuid4())
     flw = Flutterwave(secret)
@@ -191,12 +202,13 @@ def subscribe_pay():
             redirect_url,
             customer,
             payment_options=payment_options,
-            meta={'user_id': current_user.id, 'detected_country': detected_country},
+            meta={'user_id': current_user.id, 'detected_country': detected_country, 'recurring': recurring},
             customizations={
                 'title': 'BrandVoice Subscription',
                 'description': 'Access full invoice experience',
-                'logo': ''  # could add a hosted logo URL here
-            }
+                'logo': ''
+            },
+            payment_plan=str(plan_id) if plan_id else None,
         )
     except Exception as e:
         current_app.logger.exception('Flutterwave init failed for tx_ref=%s currency=%s amount=%s: %s', tx_ref, currency, amount, e)
@@ -304,9 +316,15 @@ def flutterwave_webhook():
         user = User.query.get(payment.user_id)
         if payment.status != 'successful':
             payment.status = 'successful'
-            extend_premium(user, days=30)
+            plan_code = (vdata.get('payment_plan') or vdata.get('paymentplan') or
+                         payload.get('payment_plan') or flw_data.get('payment_plan'))
+            if plan_code:
+                from .subscription import ensure_subscription
+                ensure_subscription(user, str(plan_code), payment.currency, tx_ref, days=30)
+            else:
+                extend_premium(user, days=30)
             db.session.commit()
-            current_app.logger.info('Premium extended via webhook verify user_id=%s tx_ref=%s', user.id, tx_ref)
+            current_app.logger.info('Premium extended via webhook verify user_id=%s tx_ref=%s plan=%s', user.id, tx_ref, plan_code)
         return jsonify({'status': 'ok'}), 200
 
     if v_status in {'failed', 'cancelled'} or event in {'charge.failed'}:

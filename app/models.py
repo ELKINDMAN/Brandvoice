@@ -67,6 +67,21 @@ class Payment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class Subscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    plan_code = db.Column(db.String(100), nullable=False)
+    currency = db.Column(db.String(10), nullable=True)
+    status = db.Column(db.String(50), default='active')  # active, cancelled, expired
+    current_period_start = db.Column(db.DateTime, default=datetime.utcnow)
+    current_period_end = db.Column(db.DateTime, nullable=False)
+    last_tx_ref = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def is_active(self):
+        return self.status == 'active' and datetime.utcnow() < self.current_period_end
+
 class InvoiceItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     invoice_id = db.Column(db.Integer, db.ForeignKey('invoice.id'), nullable=False)
