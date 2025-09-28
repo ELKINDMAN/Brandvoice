@@ -13,6 +13,8 @@ class User(UserMixin, db.Model):
     trial_start = db.Column(db.DateTime)  # set at registration
     is_premium = db.Column(db.Boolean, default=False)
     premium_expires_at = db.Column(db.DateTime)
+    # Renewal reminder tracking (when last 1-day-before-expiry reminder was sent)
+    last_renewal_reminder_sent_at = db.Column(db.DateTime)
     # Password reset fields
     password_reset_token = db.Column(db.String(255))
     password_reset_sent_at = db.Column(db.DateTime)

@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from .models import db, Invoice, BusinessProfile, User, Payment
+from .subscription import extend_premium, user_can_modify_invoices, needs_renewal_reminder, mark_reminder_sent
 from datetime import datetime, timedelta
 import uuid
 from werkzeug.utils import secure_filename
@@ -37,11 +38,9 @@ def dashboard():
 @login_required
 def invoices_list():
     # Gate access if neither trial nor premium
-    if not current_user.access_active():
-        flash('Your trial has expired. Please subscribe to continue.', 'warning')
-        return redirect(url_for('main.subscribe_pay'))
     invoices = Invoice.query.filter_by(user_id=current_user.id).order_by(Invoice.created_at.desc()).all()
-    return render_template('invoices_list.html', invoices=invoices)
+    can_modify = current_user.access_active()
+    return render_template('invoices_list.html', invoices=invoices, can_modify=can_modify)
 
 
 @main_bp.route('/business-profile', methods=['GET', 'POST'])
@@ -230,12 +229,8 @@ def payment_callback():
         return redirect(url_for('main.dashboard'))
     if status == 'successful':
         p.status = 'successful'
-        # Grant premium 30 days for now
         user = User.query.get(p.user_id)
-        user.is_premium = True
-        user.premium_expires_at = datetime.utcnow() + (datetime.utcnow() - datetime.utcnow())  # placeholder; extend below
-        # Simple extend 30 days
-        user.premium_expires_at = datetime.utcnow() + timedelta(days=30)
+        extend_premium(user, days=30)
         db.session.commit()
         flash('Subscription activated!', 'success')
         return redirect(url_for('main.dashboard'))
@@ -244,3 +239,110 @@ def payment_callback():
         db.session.commit()
         flash('Payment not successful.', 'error')
         return redirect(url_for('main.dashboard'))
+
+@main_bp.route('/webhook/flutterwave', methods=['POST'])
+def flutterwave_webhook():
+    from flask import jsonify
+    data_raw = request.get_data(cache=False, as_text=True)
+    sig = request.headers.get('verif-hash') or request.headers.get('Verif-Hash')
+    expected = (current_app.config.get('FLW_HASH') or '').strip()
+    if not expected:
+        current_app.logger.error('Webhook received but FLW_HASH not set; rejecting for safety.')
+        return jsonify({'status': 'misconfigured'}), 500
+    if sig != expected:
+        current_app.logger.warning('Rejected webhook invalid hash provided=%s', sig)
+        return jsonify({'status': 'invalid hash'}), 401
+
+    payload = request.get_json(silent=True) or {}
+    event = payload.get('event') or payload.get('status')
+    flw_data = payload.get('data') or {}
+    tx_ref = flw_data.get('tx_ref') or flw_data.get('txRef')
+    if not tx_ref:
+        current_app.logger.info('Webhook missing tx_ref; event=%s raw=%s', event, data_raw[:300])
+        return jsonify({'status': 'ignored'}), 200
+
+    payment = Payment.query.filter_by(tx_ref=tx_ref).first()
+    if not payment:
+        current_app.logger.warning('Webhook for unknown tx_ref=%s; ignoring', tx_ref)
+        return jsonify({'status': 'ignored'}), 200
+
+    # Idempotency: if already successful & event signals success, short-circuit
+    if payment.status == 'successful' and event in {'charge.completed', 'successful'}:
+        return jsonify({'status': 'ok'}), 200
+
+    # Verify transaction with Flutterwave (server-side) for integrity
+    from .payments import Flutterwave
+    secret = (current_app.config.get('FLW_SECRET_KEY') or '').strip()
+    if not secret:
+        current_app.logger.error('Missing FLW_SECRET_KEY during webhook verification.')
+        return jsonify({'status': 'misconfigured'}), 500
+
+    verifier = Flutterwave(secret)
+    try:
+        verify_resp = verifier.verify_transaction_by_ref(tx_ref)
+    except Exception as e:
+        current_app.logger.exception('Transaction verify failed tx_ref=%s: %s', tx_ref, e)
+        return jsonify({'status': 'verify failed'}), 502
+
+    vdata = (verify_resp or {}).get('data') or {}
+    v_status = (vdata.get('status') or '').lower()
+    v_amount = vdata.get('amount')
+    v_currency = vdata.get('currency')
+
+    # Basic consistency checks
+    mismatch = []
+    if v_currency and payment.currency and v_currency != payment.currency:
+        mismatch.append('currency')
+    if v_amount and payment.amount and float(v_amount) != float(payment.amount):
+        mismatch.append('amount')
+    if mismatch:
+        current_app.logger.warning('Verify mismatch tx_ref=%s fields=%s v_currency=%s payment_currency=%s v_amount=%s payment_amount=%s',
+                                   tx_ref, mismatch, v_currency, payment.currency, v_amount, payment.amount)
+        return jsonify({'status': 'mismatch'}), 400
+
+    if v_status == 'successful' and event in {'charge.completed', 'successful'}:
+        user = User.query.get(payment.user_id)
+        if payment.status != 'successful':
+            payment.status = 'successful'
+            extend_premium(user, days=30)
+            db.session.commit()
+            current_app.logger.info('Premium extended via webhook verify user_id=%s tx_ref=%s', user.id, tx_ref)
+        return jsonify({'status': 'ok'}), 200
+
+    if v_status in {'failed', 'cancelled'} or event in {'charge.failed'}:
+        payment.status = 'failed'
+        db.session.commit()
+        return jsonify({'status': 'not successful'}), 200
+
+    # Unknown transitional state
+    current_app.logger.info('Unhandled webhook state tx_ref=%s v_status=%s event=%s', tx_ref, v_status, event)
+    return jsonify({'status': 'pending'}), 200
+
+@main_bp.route('/jobs/daily')
+def run_daily_jobs():
+    # Simple unsecured endpoint (should protect with secret in production)
+    from .models import User
+    secret = request.args.get('secret')
+    expected = current_app.config.get('CRON_SECRET')
+    if expected and secret != expected:
+        return 'Forbidden', 403
+    now = datetime.utcnow()
+    users = User.query.filter(User.is_premium == True).all()
+    sent = 0
+    from .__init__ import mail
+    from flask_mail import Message
+    for u in users:
+        if needs_renewal_reminder(u):
+            try:
+                msg = Message(
+                    subject='Your BrandVoice subscription expires soon',
+                    recipients=[u.email],
+                    body='Your BrandVoice subscription will expire in about 1 day. Renew now to avoid interruption.'
+                )
+                mail.send(msg)
+                mark_reminder_sent(u)
+                sent += 1
+            except Exception as e:
+                current_app.logger.warning('Failed to send renewal reminder to user_id=%s: %s', u.id, e)
+    db.session.commit()
+    return f'OK sent={sent}'
