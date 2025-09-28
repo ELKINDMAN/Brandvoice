@@ -22,7 +22,11 @@
         <a href="{{ url_for('main.dashboard') }}" class="text-gray-700 hover:text-gray-900" title="Back to Dashboard">&larr;</a>
         <h1 class="text-2xl font-semibold">Your Invoices</h1>
       </div>
-      <a href="{{ url_for('generate.generate_get') }}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">New Invoice</a>
+      {% if can_modify %}
+        <a href="{{ url_for('generate.generate_get') }}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">New Invoice</a>
+      {% else %}
+        <button class="px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed" title="Subscription expired">New Invoice</button>
+      {% endif %}
     </div>
 
     {% if invoices %}
@@ -40,7 +44,7 @@
         </thead>
         <tbody>
           {% for inv in invoices %}
-          <tr class="border-t hover:bg-gray-50 cursor-pointer" data-href="{{ url_for('generate.print_invoice', invoice_id=inv.id) }}" title="Open print view in new tab">
+          <tr class="border-t hover:bg-gray-50 cursor-pointer" data-href="{{ url_for('generate.print_invoice', invoice_id=inv.id) }}" title="Open invoice view in new tab">
             <td class="p-3">{{ loop.index }}</td>
             <td class="p-3">{{ inv.invoice_number }}</td>
             <td class="p-3">{{ inv.client_name }}</td>

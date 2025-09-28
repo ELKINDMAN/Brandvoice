@@ -51,3 +51,12 @@ class Flutterwave:
         resp = requests.post(url, json=payload, headers=headers, timeout=30)
         resp.raise_for_status()
         return resp.json()
+
+    def verify_transaction_by_ref(self, tx_ref: str):
+        """Verify a transaction by reference (server-side integrity check)."""
+        url = f'{self.base_url}/transactions/verify_by_reference'
+        headers = {'Authorization': f'Bearer {self.secret_key}'}
+        params = {'tx_ref': tx_ref}
+        resp = requests.get(url, headers=headers, params=params, timeout=30)
+        resp.raise_for_status()
+        return resp.json()

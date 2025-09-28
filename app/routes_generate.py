@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, url_for, current_app, redirect, flash
 from flask_login import login_required, current_user
 from .models import db, Invoice, BusinessProfile, InvoiceItem
+from .subscription import user_can_modify_invoices
 
 main_generate_bp = Blueprint('generate', __name__)
 
@@ -12,6 +13,9 @@ def generate_get():
     if not profile:
         flash('Please create your Business Profile before creating invoices.', 'warning')
         return redirect(url_for('main.business_profile'))
+    if not user_can_modify_invoices(current_user):
+        flash('Your trial or subscription has ended. Subscribe to continue creating invoices.', 'warning')
+        return redirect(url_for('main.invoices_list'))
     return render_template('generate_live.html')
 
 @main_generate_bp.route('/generate/form', methods=['GET'])
@@ -21,6 +25,8 @@ def generate_form():
     profile = BusinessProfile.query.filter_by(user_id=current_user.id).first()
     if not profile:
         return redirect(url_for('main.business_profile'))
+    if not user_can_modify_invoices(current_user):
+        return '<div class="p-4 text-sm text-red-600">Subscription expired. <a class="underline" href="' + url_for('main.subscribe_pay') + '">Subscribe</a> to resume creating invoices.</div>'
     return render_template('form.html')
 
 
@@ -94,8 +100,12 @@ def generate_post():
         }
         chosen_template = template if template in allowed_templates else "invoice_template_1.html"
 
-        # Save invoice meta to DB only if not a live preview (finalize)
-        if not is_preview:
+        # Prevent finalize if subscription/trial not active
+        if not user_can_modify_invoices(current_user) and not is_preview:
+            return '<div class="p-4 text-sm text-red-600">Cannot save invoice. Trial or subscription inactive. <a class="underline" href="' + url_for('main.subscribe_pay') + '">Subscribe</a>.</div>'
+
+        # Save invoice meta to DB only if not a live preview (finalize) and permitted
+        if not is_preview and user_can_modify_invoices(current_user):
             inv = Invoice(
                 user_id=current_user.id,
                 invoice_number=invoice_number,
@@ -163,6 +173,11 @@ def print_invoice(invoice_id: int):
     auto_print = str(request.args.get('auto_print', '')).lower() in {'1', 'true', 'yes'}
 
     chosen_template = inv.template_name or 'invoice_template_1.html'
+    # If user cannot modify (expired) force read-only; disable auto_print and inject flag
+    from .subscription import user_can_modify_invoices
+    can_modify = user_can_modify_invoices(current_user)
+    if not can_modify:
+        auto_print = False
     html = render_template(
         chosen_template,
         business_name=profile.business_name,
@@ -178,5 +193,6 @@ def print_invoice(invoice_id: int):
         items=item_dicts,
         total_amount=inv.total_amount,
         auto_print=auto_print,
+        read_only=(not can_modify),
     )
     return html
