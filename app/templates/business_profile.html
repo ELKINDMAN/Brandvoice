@@ -45,6 +45,16 @@
           <img src="{{ url_for('static', filename=profile.logo_path) }}" alt="Logo" class="mt-2 h-16 object-contain">
         {% endif %}
       </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-600">Location</label>
+        <select name="location" class="w-full mt-1 p-2 border rounded-lg" required>
+          {% set loc = profile.location if profile else '' %}
+          <option value="" disabled {% if not loc %}selected{% endif %}>Select your country</option>
+          <option value="Nigeria" {% if loc == 'Nigeria' %}selected{% endif %}>Nigeria</option>
+          <option value="United States" {% if loc == 'United States' %}selected{% endif %}>United States</option>
+          <option value="United Kingdom" {% if loc == 'United Kingdom' %}selected{% endif %}>United Kingdom</option>
+        </select>
+      </div>
       <div class="flex justify-end gap-2">
         <a href="{{ url_for('main.dashboard') }}" class="px-4 py-2 bg-gray-100 rounded">Cancel</a>
         <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
