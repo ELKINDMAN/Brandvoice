@@ -70,14 +70,14 @@ def forgot_password():
                     reset_link = urlunparse((parts.scheme, canonical, parts.path, parts.params, parts.query, parts.fragment))
             except Exception as _e:  # noqa: BLE001
                 current_app.logger.debug('Canonical URL rewrite skipped: %s', _e)
-        body_txt = f'Click the link to reset your password (expires in {RESET_EXP_MINUTES} minutes): {reset_link}'
+        body_txt = f'Click the link to reset your password: {reset_link}'
         ok = safe_send_mail('Password Reset Request', [email], body_txt, category='password_reset')
         if ok:
             current_app.logger.info('Password reset email dispatched user_id=%s token_prefix=%s', user.id, token[:8])
-            flash('Email has been sent to your email', 'success')
+            flash('Password reset email sent.', 'success')
         else:
-            current_app.logger.warning('Password reset email queued (send failed) user_id=%s token_prefix=%s', user.id, token[:8])
-            flash('Email has been queued due to a temporary issue. Please check later.', 'warning')
+            current_app.logger.warning('Password reset email FAILED user_id=%s token_prefix=%s (will be retried by job)', user.id, token[:8])
+            flash('We could not send the reset email right now. Please try again later.', 'error')
         return redirect(url_for('auth.forgot_password'))
     return render_template('forgot_password.html')
 
