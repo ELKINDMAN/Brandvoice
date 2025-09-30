@@ -63,7 +63,7 @@ class Payment(db.Model):
     tx_ref = db.Column(db.String(255), unique=True, nullable=False)
     amount = db.Column(db.Float, nullable=False)
     currency = db.Column(db.String(10), nullable=False)
-    status = db.Column(db.String(50), default='initialized')  # initialized, successful, failed
+    status = db.Column(db.String(50), default='initiated')  # initiated, successful, failed
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

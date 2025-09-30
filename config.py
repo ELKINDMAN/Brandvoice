@@ -13,6 +13,8 @@ class Config:
     PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY")
     FLW_SECRET_KEY = os.environ.get("FLW_SECRET_KEY")
     FLW_HASH = os.environ.get("FLW_HASH")  # webhook verification hash
+    # Base URL (allow override for sandbox if needed)
+    FLW_BASE_URL = os.environ.get("FLW_BASE_URL", "https://api.flutterwave.com/v3")
     # Optional recurring plan IDs by currency (Flutterwave payment_plan IDs)
     FLW_PLAN_USD = os.environ.get("FLW_PLAN_USD")
     FLW_PLAN_NGN = os.environ.get("FLW_PLAN_NGN")

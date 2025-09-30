@@ -188,7 +188,7 @@ def subscribe_pay():
             payment_options = 'card,banktransfer,applepay,googlepay'
 
     tx_ref = str(uuid.uuid4())
-    flw = Flutterwave(secret)
+    flw = Flutterwave(secret, current_app.config.get('FLW_BASE_URL'))
     redirect_url = url_for('main.payment_callback', _external=True)
     canonical = current_app.config.get('CANONICAL_DOMAIN')
     if canonical:
@@ -298,7 +298,7 @@ def flutterwave_webhook():
         current_app.logger.error('Missing FLW_SECRET_KEY during webhook verification.')
         return jsonify({'status': 'misconfigured'}), 500
 
-    verifier = Flutterwave(secret)
+    verifier = Flutterwave(secret, current_app.config.get('FLW_BASE_URL'))
     try:
         verify_resp = verifier.verify_transaction_by_ref(tx_ref)
     except Exception as e:
