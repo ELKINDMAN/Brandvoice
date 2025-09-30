@@ -187,7 +187,9 @@ def subscribe_pay():
         else:
             payment_options = 'card,banktransfer,applepay,googlepay'
 
-    tx_ref = str(uuid.uuid4())
+    requested_plan = (request.args.get('plan') or '').strip().lower() or None
+    # tx_ref pattern: BV-{user_id}-{uuid}
+    tx_ref = f"BV-{current_user.id}-{uuid.uuid4()}"
     flw = Flutterwave(secret, current_app.config.get('FLW_BASE_URL'))
     redirect_url = url_for('main.payment_callback', _external=True)
     canonical = current_app.config.get('CANONICAL_DOMAIN')
@@ -201,8 +203,8 @@ def subscribe_pay():
             current_app.logger.debug('Canonical redirect rewrite skipped: %s', _e)
     customer = {'email': current_user.email}
 
-    current_app.logger.info('Initializing FLW payment tx_ref=%s currency=%s amount=%s country_detected=%s override=%s options=%s',
-                            tx_ref, currency, amount, detected_country, bool(override_currency), payment_options)
+    current_app.logger.info('Initializing FLW payment tx_ref=%s currency=%s amount=%s country_detected=%s override=%s options=%s requested_plan=%s recurring=%s',
+                            tx_ref, currency, amount, detected_country, bool(override_currency), payment_options, requested_plan, recurring)
     try:
         resp = flw.initialize_payment(
             tx_ref,
@@ -211,7 +213,13 @@ def subscribe_pay():
             redirect_url,
             customer,
             payment_options=payment_options,
-            meta={'user_id': current_user.id, 'detected_country': detected_country, 'recurring': recurring},
+            meta={
+                'user_id': current_user.id,
+                'detected_country': detected_country,
+                'recurring': recurring,
+                'requested_plan': requested_plan,
+                'app_env': current_app.config.get('FLASK_ENV') or os.environ.get('FLASK_ENV'),
+            },
             customizations={
                 'title': 'BrandVoice Subscription',
                 'description': 'Access full invoice experience',
@@ -225,7 +233,7 @@ def subscribe_pay():
         return redirect(url_for('main.dashboard'))
 
     # Persist provisional payment record
-    p = Payment(user_id=current_user.id, tx_ref=tx_ref, amount=amount, currency=currency)
+    p = Payment(user_id=current_user.id, tx_ref=tx_ref, amount=amount, currency=currency, status='initiated')
     db.session.add(p)
     db.session.commit()
 
