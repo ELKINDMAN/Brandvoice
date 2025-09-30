@@ -107,66 +107,11 @@ def subscribe_pay():
         return redirect(url_for('main.dashboard'))
     if not secret.startswith('FLWSECK_'):
         current_app.logger.warning('FLW secret does not start with expected prefix; proceeding anyway. Masked=%s', _mask(secret))
-    import requests
-
-    # --- Currency & amount determination ---
-    base_amount_usd = 1.00  # base reference price in USD
-
-    def geo_country() -> str | None:
-        """Attempt to detect 2-letter country code with primary + fallback provider."""
-        # Respect X-Forwarded-For if behind proxy (take first IP)
-        fwd = request.headers.get('X-Forwarded-For')
-        if fwd:
-            ip = fwd.split(',')[0].strip()
-        else:
-            ip = None  # public IP detection provider will infer
-        try:
-            resp = requests.get('https://ipapi.co/json/', timeout=4)
-            if resp.ok:
-                return resp.json().get('country_code')
-        except Exception as e:
-            current_app.logger.info('Primary geo provider failed: %s', e)
-        # fallback
-        try:
-            resp2 = requests.get('https://ipwho.is/' + (ip or ''), timeout=4)
-            if resp2.ok:
-                data = resp2.json()
-                if data.get('success') is not False:
-                    return data.get('country_code') or data.get('country_code_iso2')
-        except Exception as e2:
-            current_app.logger.warning('Fallback geo provider failed: %s', e2)
-        return None
-
-    country = geo_country()
-    detected_country = country  # keep for logging/diagnostics
-
-    # Allow safe manual override via query (?currency=USD) restricted to whitelist
-    override_currency = request.args.get('currency', '').upper().strip()
-    allowed_currencies = {'USD', 'NGN', 'GBP'}
-    if override_currency and override_currency not in allowed_currencies:
-        flash('Unsupported currency override ignored.', 'warning')
-        override_currency = ''
-
-    if override_currency:
-        currency = override_currency
-    else:
-        if country == 'NG':
-            currency = 'NGN'
-        elif country == 'GB':  # United Kingdom
-            currency = 'GBP'
-        elif country == 'US':
-            currency = 'USD'
-        else:
-            # default to USD when unknown
-            currency = 'USD'
-
-    # Rough FX multipliers (TODO: replace with live FX service)
-    if currency == 'NGN':
-        amount = round(base_amount_usd * 300, 2)
-    elif currency == 'GBP':
-        amount = round(base_amount_usd * 0.78, 2)
-    else:  # USD
-        amount = base_amount_usd
+    # --- Fixed pricing (no IP geo) ---
+    from .pricing import resolve_currency
+    override_currency = request.args.get('currency', '').upper().strip() or None
+    currency, amount = resolve_currency(override_currency)
+    detected_country = None  # removed geo logic
 
     # Plan mapping (recurring support if plan IDs present)
     plan_map = {
@@ -204,8 +149,8 @@ def subscribe_pay():
             current_app.logger.debug('Canonical redirect rewrite skipped: %s', _e)
     customer = {'email': current_user.email}
 
-    current_app.logger.info('Initializing FLW payment tx_ref=%s currency=%s amount=%s country_detected=%s override=%s options=%s requested_plan=%s recurring=%s',
-                            tx_ref, currency, amount, detected_country, bool(override_currency), payment_options, requested_plan, recurring)
+    current_app.logger.info('Initializing FLW payment tx_ref=%s user_id=%s currency=%s amount=%s override=%s options=%s requested_plan=%s recurring=%s',
+                            tx_ref, current_user.id, currency, amount, bool(override_currency), payment_options, requested_plan, recurring)
     try:
         resp = flw.initialize_payment(
             tx_ref,
