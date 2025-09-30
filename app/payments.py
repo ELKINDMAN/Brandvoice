@@ -61,3 +61,10 @@ class Flutterwave:
         resp = requests.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         return resp.json()
+
+    def verify_transaction_by_id(self, flw_id: str | int):
+        url = f'{self.base_url}/transactions/{flw_id}/verify'
+        headers = {'Authorization': f'Bearer {self.secret_key}'}
+        resp = requests.get(url, headers=headers, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
