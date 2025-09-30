@@ -5,12 +5,9 @@ from .models import db, User
 from itsdangerous import URLSafeTimedSerializer
 from datetime import datetime, timedelta
 import secrets
-from .__init__ import mail
-from flask_mail import Message
+from .utils_mail import safe_send_mail
 
-# NOTE: Email sending (password reset) uses the Gmail SMTP configuration defined
-# in create_app within app.__init__.py. Ensure GMAIL_ADDRESS and GMAIL_APP_PASSWORD
-# environment variables are set before triggering password reset.
+# NOTE: Email sending now uses Mailtrap API via utils_mail.safe_send_mail.
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -56,10 +53,8 @@ def forgot_password():
         email = (request.form.get('email') or '').strip().lower()
         user = User.query.filter_by(email=email).first()
         if not user:
-            # NOTE: Current message still discloses invalid vs valid and can enable enumeration.
-            # Consider switching to a generic success message always.
-            current_app.logger.info('Password reset requested for non-existent email=%s', email)
-            flash('Invalid email address.', 'danger')
+            current_app.logger.info('Password reset requested for non-existent email=%s (suppressed)', email)
+            flash('If that email exists, a reset link has been sent.', 'info')
             return redirect(url_for('auth.forgot_password'))
         token = secrets.token_urlsafe(48)
         user.password_reset_token = token
@@ -68,40 +63,20 @@ def forgot_password():
         reset_link = url_for('auth.reset_password', token=token, _external=True)
         canonical = current_app.config.get('CANONICAL_DOMAIN')
         if canonical:
-            # Replace netloc if running in an internal environment (heuristic: localhost or 127).* 
             try:
                 from urllib.parse import urlparse, urlunparse
                 parts = urlparse(reset_link)
-                if parts.hostname in {'localhost', '127.0.0.1'} or parts.hostname.endswith('.onrender.com'):
+                if parts.hostname in {'localhost', '127.0.0.1'} or (parts.hostname and parts.hostname.endswith('.onrender.com')):
                     reset_link = urlunparse((parts.scheme, canonical, parts.path, parts.params, parts.query, parts.fragment))
             except Exception as _e:  # noqa: BLE001
                 current_app.logger.debug('Canonical URL rewrite skipped: %s', _e)
-        # Pre-flight mail configuration sanity logging (masked where appropriate)
-        mail_cfg = {
-            'server': current_app.config.get('MAIL_SERVER'),
-            'port': current_app.config.get('MAIL_PORT'),
-            'use_tls': current_app.config.get('MAIL_USE_TLS'),
-            'use_ssl': current_app.config.get('MAIL_USE_SSL'),
-            'username_present': bool(current_app.config.get('MAIL_USERNAME')),
-            'password_present': bool(current_app.config.get('MAIL_PASSWORD')),
-            'default_sender': current_app.config.get('MAIL_DEFAULT_SENDER'),
-        }
-        current_app.logger.info('Initiating password reset email user_id=%s email=%s mail_cfg=%s token_prefix=%s',
-                                user.id, email, mail_cfg, token[:8])
-        try:
-            msg = Message(
-                subject='Password Reset Request',
-                recipients=[email],
-                body=f'Click the link to reset your password (expires in {RESET_EXP_MINUTES} minutes): {reset_link}'
-            )
-            if current_app.config.get('MAIL_DEFAULT_SENDER'):
-                msg.sender = current_app.config['MAIL_DEFAULT_SENDER']
-            mail.send(msg)
-            current_app.logger.info('Password reset email dispatched user_id=%s tx_token_prefix=%s', user.id, token[:8])
-        except Exception as e:
-            # Keep token (user can retry later); log full exception stack
-            current_app.logger.exception('Mail send failed for user_id=%s email=%s: %s', user.id, email, e)
-        flash('Password reset link has been sent to email. Check your email.', 'info')
+        body_txt = f'Click the link to reset your password (expires in {RESET_EXP_MINUTES} minutes): {reset_link}'
+        ok = safe_send_mail('Password Reset Request', [email], body_txt, category='password_reset')
+        if ok:
+            current_app.logger.info('Password reset email dispatched user_id=%s token_prefix=%s', user.id, token[:8])
+        else:
+            current_app.logger.warning('Password reset email queued (send failed) user_id=%s token_prefix=%s', user.id, token[:8])
+        flash('If that email exists, a reset link has been sent.', 'info')
         return redirect(url_for('auth.forgot_password'))
     return render_template('forgot_password.html')
 
