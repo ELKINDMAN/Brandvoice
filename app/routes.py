@@ -162,7 +162,7 @@ def subscribe_pay():
 
     # Rough FX multipliers (TODO: replace with live FX service)
     if currency == 'NGN':
-        amount = round(base_amount_usd * 20, 2)
+        amount = round(base_amount_usd * 300, 2)
     elif currency == 'GBP':
         amount = round(base_amount_usd * 0.78, 2)
     else:  # USD
