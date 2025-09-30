@@ -3,7 +3,10 @@ import socket
 from typing import List, Optional
 from flask import current_app
 from .models import db, FailedEmail
-import mailtrap as mt
+try:
+    import mailtrap as mt  # type: ignore
+except ImportError:  # Provide a minimal stub so code paths still function (queueing only)
+    mt = None  # type: ignore
 from datetime import datetime
 
 # Network level errors we want to catch distinctly
@@ -13,13 +16,13 @@ class MailtrapEmailClient:
     def __init__(self, token: Optional[str] = None):
         self.token = token or os.environ.get('MAILTRAP_API_KEY')
         self._client = None
-        if self.token:
+        if self.token and mt is not None:
             try:
                 self._client = mt.MailtrapClient(token=self.token)
             except Exception as e:  # noqa: BLE001
                 current_app.logger.error('Failed to initialize Mailtrap client: %s', e)
         else:
-            current_app.logger.warning('MAILTRAP_API_KEY not set; email sending disabled.')
+            current_app.logger.warning('MAILTRAP_API_KEY not set or mailtrap lib missing; email sending disabled.')
 
     def send(self, subject: str, recipients: List[str], text: str, category: str = 'transactional', sender_name: str = 'BrandVoice Support'):  # noqa: D401
         current_app.logger.info('Email attempt subject=%s to=%s category=%s', subject, ','.join(recipients), category)
@@ -36,6 +39,8 @@ class MailtrapEmailClient:
             email_addr = sender_email or 'support@brandvoice.live'
             name = sender_name
         try:
+            if mt is None:
+                raise RuntimeError('mailtrap library not installed')
             mail = mt.Mail(
                 sender=mt.Address(email=email_addr, name=name),
                 to=[mt.Address(email=r) for r in recipients],
@@ -43,7 +48,7 @@ class MailtrapEmailClient:
                 text=text,
                 category=category,
             )
-            resp = self._client.send(mail)
+            resp = self._client.send(mail)  # type: ignore[attr-defined]
             current_app.logger.info('Email success subject=%s to=%s resp_id=%s', subject, ','.join(recipients), getattr(resp, 'message_ids', None))
             return True
         except NETWORK_ERRORS as e:
