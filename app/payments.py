@@ -49,8 +49,19 @@ class Flutterwave:
             payload['meta'] = meta
         if customizations:
             payload['customizations'] = customizations
-        resp = requests.post(url, json=payload, headers=headers, timeout=30)
-        resp.raise_for_status()
+        try:
+            resp = requests.post(url, json=payload, headers=headers, timeout=30)
+            resp.raise_for_status()
+        except requests.HTTPError as http_err:
+            # Surface more diagnostic info for upstream logging
+            body = None
+            try:
+                body = resp.text[:1000]
+            except Exception:
+                pass
+            raise Exception(f'Flutterwave init HTTPError status={resp.status_code} body={body}') from http_err
+        except requests.RequestException as req_err:
+            raise Exception(f'Flutterwave init network error: {req_err}') from req_err
         return resp.json()
 
     def verify_transaction_by_ref(self, tx_ref: str):
