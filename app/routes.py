@@ -356,20 +356,15 @@ def run_daily_jobs():
     now = datetime.utcnow()
     users = User.query.filter(User.is_premium == True).all()
     sent = 0
-    from .__init__ import mail
-    from flask_mail import Message
+    from .utils_mail import safe_send_mail
     for u in users:
         if needs_renewal_reminder(u):
-            try:
-                msg = Message(
-                    subject='Your BrandVoice subscription expires soon',
-                    recipients=[u.email],
-                    body='Your BrandVoice subscription will expire in about 1 day. Renew now to avoid interruption.'
-                )
-                mail.send(msg)
+            body = 'Your BrandVoice subscription will expire in about 1 day. Renew now to avoid interruption.'
+            ok = safe_send_mail('Your BrandVoice subscription expires soon', [u.email], body, category='renewal_reminder')
+            if ok:
                 mark_reminder_sent(u)
                 sent += 1
-            except Exception as e:
-                current_app.logger.warning('Failed to send renewal reminder to user_id=%s: %s', u.id, e)
+            else:
+                current_app.logger.warning('Queued (failed send) renewal reminder user_id=%s', u.id)
     db.session.commit()
     return f'OK sent={sent}'
