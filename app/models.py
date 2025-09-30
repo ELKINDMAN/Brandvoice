@@ -109,3 +109,12 @@ class PaymentCallbackLog(db.Model):
     payment_id = db.Column(db.Integer, db.ForeignKey('payment.id'), nullable=False)
     raw_query = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class WebhookLog(db.Model):
+    """Stores raw webhook payloads for auditing/debugging."""
+    id = db.Column(db.Integer, primary_key=True)
+    tx_ref = db.Column(db.String(255), index=True)
+    event = db.Column(db.String(100))
+    payload_json = db.Column(db.Text)  # raw JSON string
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

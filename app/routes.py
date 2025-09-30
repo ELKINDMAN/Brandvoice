@@ -293,14 +293,36 @@ def flutterwave_webhook():
     event = payload.get('event') or payload.get('status')
     flw_data = payload.get('data') or {}
     tx_ref = flw_data.get('tx_ref') or flw_data.get('txRef')
+
+    # Persist raw webhook log for auditing
+    try:
+        from .models import WebhookLog
+        wl = WebhookLog(tx_ref=tx_ref, event=event, payload_json=data_raw[:5000])  # truncate to avoid oversized rows
+        db.session.add(wl)
+        db.session.commit()
+    except Exception as e:  # noqa: BLE001
+        current_app.logger.warning('Failed to persist WebhookLog tx_ref=%s err=%s', tx_ref, e)
     if not tx_ref:
         current_app.logger.info('Webhook missing tx_ref; event=%s raw=%s', event, data_raw[:300])
         return jsonify({'status': 'ignored'}), 200
 
     payment = Payment.query.filter_by(tx_ref=tx_ref).first()
     if not payment:
-        current_app.logger.warning('Webhook for unknown tx_ref=%s; ignoring', tx_ref)
-        return jsonify({'status': 'ignored'}), 200
+        # Create a stub payment row (edge case: webhook before our init record commit)
+        try:
+            stub_amount = float(flw_data.get('amount') or 0)
+            stub_currency = flw_data.get('currency') or 'UNKNOWN'
+            payment = Payment(user_id=flw_data.get('meta', {}).get('user_id') or 0,
+                              tx_ref=tx_ref,
+                              amount=stub_amount,
+                              currency=stub_currency,
+                              status='initiated')
+            db.session.add(payment)
+            db.session.commit()
+            current_app.logger.info('Created stub payment for early webhook tx_ref=%s', tx_ref)
+        except Exception:
+            current_app.logger.warning('Webhook for unknown tx_ref=%s; failed stub create', tx_ref)
+            return jsonify({'status': 'ignored'}), 200
 
     # Idempotency: if already successful & event signals success, short-circuit
     if payment.status == 'successful' and event in {'charge.completed', 'successful'}:
@@ -324,6 +346,7 @@ def flutterwave_webhook():
     v_status = (vdata.get('status') or '').lower()
     v_amount = vdata.get('amount')
     v_currency = vdata.get('currency')
+    v_id = vdata.get('id') or vdata.get('flw_ref')
 
     # Basic consistency checks
     mismatch = []
@@ -338,8 +361,19 @@ def flutterwave_webhook():
 
     if v_status == 'successful' and event in {'charge.completed', 'successful'}:
         user = User.query.get(payment.user_id)
+        if not user:
+            current_app.logger.error('Webhook successful but user missing payment_id=%s tx_ref=%s', payment.id, tx_ref)
+            return jsonify({'status': 'user missing'}), 500
         if payment.status != 'successful':
             payment.status = 'successful'
+            payment.flw_transaction_id = str(v_id) if v_id else payment.flw_transaction_id
+            payment.verified_at = datetime.utcnow()
+            # Store compact meta snapshot
+            try:
+                import json
+                payment.raw_meta = json.dumps({'verify': vdata})[:8000]
+            except Exception:
+                pass
             plan_code = (vdata.get('payment_plan') or vdata.get('paymentplan') or
                          payload.get('payment_plan') or flw_data.get('payment_plan'))
             if plan_code:
@@ -353,6 +387,7 @@ def flutterwave_webhook():
 
     if v_status in {'failed', 'cancelled'} or event in {'charge.failed'}:
         payment.status = 'failed'
+        payment.failure_reason = vdata.get('processor_response') or vdata.get('narration') or 'failed'
         db.session.commit()
         return jsonify({'status': 'not successful'}), 200
 
