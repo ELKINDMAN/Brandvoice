@@ -110,7 +110,7 @@ def subscribe_pay():
     import requests
 
     # --- Currency & amount determination ---
-    base_amount_usd = 4.99  # base reference price in USD
+    base_amount_usd = 0.00  # base reference price in USD
 
     def geo_country() -> str | None:
         """Attempt to detect 2-letter country code with primary + fallback provider."""
