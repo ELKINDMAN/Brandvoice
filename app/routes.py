@@ -249,6 +249,7 @@ def subscribe_pay():
 def payment_callback():
     tx_ref = request.args.get('tx_ref') or request.args.get('txRef')
     status = request.args.get('status')
+    flw_tx_id = request.args.get('transaction_id') or request.args.get('id')
     if not tx_ref:
         flash('Missing transaction reference.', 'error')
         return redirect(url_for('main.dashboard'))
@@ -256,18 +257,23 @@ def payment_callback():
     if not p:
         flash('Unknown transaction.', 'error')
         return redirect(url_for('main.dashboard'))
-    if status == 'successful':
-        p.status = 'successful'
-        user = User.query.get(p.user_id)
-        extend_premium(user, days=30)
-        db.session.commit()
-        flash('Subscription activated!', 'success')
-        return redirect(url_for('main.dashboard'))
-    else:
-        p.status = 'failed'
-        db.session.commit()
-        flash('Payment not successful.', 'error')
-        return redirect(url_for('main.dashboard'))
+    # Log raw query string for traceability
+    from urllib.parse import urlencode
+    raw_qs = urlencode({k: v for k, v in request.args.items()})
+    from .models import PaymentCallbackLog
+    try:
+        log = PaymentCallbackLog(payment_id=p.id, raw_query=raw_qs)
+        db.session.add(log)
+    except Exception as e:  # noqa: BLE001
+        current_app.logger.warning('Failed to log payment callback tx_ref=%s err=%s', tx_ref, e)
+
+    # Transition only to callback_received if still in initiated state
+    if p.status == 'initiated':
+        p.status = 'callback_received'
+    db.session.commit()
+
+    flash('Payment received. We are verifying your transaction — you will get an email when confirmed.', 'info')
+    return redirect(url_for('main.dashboard'))
 
 @main_bp.route('/webhook/flutterwave', methods=['POST'])
 def flutterwave_webhook():
@@ -356,23 +362,52 @@ def flutterwave_webhook():
 @main_bp.route('/jobs/daily')
 def run_daily_jobs():
     # Simple unsecured endpoint (should protect with secret in production)
-    from .models import User
+    from .models import User, Subscription
     secret = request.args.get('secret')
     expected = current_app.config.get('CRON_SECRET')
     if expected and secret != expected:
         return 'Forbidden', 403
     now = datetime.utcnow()
-    users = User.query.filter(User.is_premium == True).all()
-    sent = 0
     from .utils_mail import safe_send_mail
-    for u in users:
-        if needs_renewal_reminder(u):
-            body = 'Your BrandVoice subscription will expire in about 1 day. Renew now to avoid interruption.'
-            ok = safe_send_mail('Your BrandVoice subscription expires soon', [u.email], body, category='renewal_reminder')
-            if ok:
-                mark_reminder_sent(u)
-                sent += 1
-            else:
-                current_app.logger.warning('Queued (failed send) renewal reminder user_id=%s', u.id)
+    sent = 0
+    # 1. Downgrade expired users
+    expired_users = User.query.filter(User.is_premium == True, User.premium_expires_at != None, User.premium_expires_at <= now).all()  # noqa: E711
+    for eu in expired_users:
+        eu.is_premium = False
+        current_app.logger.info('Downgraded expired user_id=%s premium_expires_at=%s', eu.id, eu.premium_expires_at)
+
+    # 2. Gather active subscriptions in <=3 day window
+    window_end = now + timedelta(days=3)
+    subs = Subscription.query.filter(Subscription.status == 'active', Subscription.current_period_end > now, Subscription.current_period_end <= window_end).all()
+    processed_users = set()
+    for sub in subs:
+        user = User.query.get(sub.user_id)
+        if not user or user.id in processed_users:
+            continue
+        # Avoid spamming: send only if no reminder today
+        if user.last_renewal_reminder_sent_at and user.last_renewal_reminder_sent_at.date() == now.date():
+            continue
+        days_left = (sub.current_period_end - now).days
+        if days_left < 0:
+            continue
+        body = f'Your BrandVoice subscription will expire in {days_left} day(s). Renew now to avoid interruption.'
+        ok = safe_send_mail('Your BrandVoice subscription expires soon', [user.email], body, category='renewal_reminder')
+        if ok:
+            mark_reminder_sent(user)
+            sent += 1
+        else:
+            current_app.logger.warning('Queued (failed send) renewal reminder user_id=%s', user.id)
+        processed_users.add(user.id)
+
     db.session.commit()
-    return f'OK sent={sent}'
+    return f'OK downgraded={len(expired_users)} reminders_sent={sent}'
+
+@main_bp.route('/jobs/retry-emails')
+def retry_emails_job():
+    secret = request.args.get('secret')
+    expected = current_app.config.get('CRON_SECRET')
+    if expected and secret != expected:
+        return 'Forbidden', 403
+    from .utils_mail import retry_failed_emails
+    processed = retry_failed_emails(limit=50)
+    return f'OK retried={processed}'

@@ -63,9 +63,13 @@ class Payment(db.Model):
     tx_ref = db.Column(db.String(255), unique=True, nullable=False)
     amount = db.Column(db.Float, nullable=False)
     currency = db.Column(db.String(10), nullable=False)
-    status = db.Column(db.String(50), default='initiated')  # initiated, successful, failed
+    status = db.Column(db.String(50), default='initiated')  # initiated, callback_received, successful, failed
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    flw_transaction_id = db.Column(db.String(50))  # Flutterwave internal transaction ID
+    verified_at = db.Column(db.DateTime)
+    failure_reason = db.Column(db.String(255))
+    raw_meta = db.Column(db.Text)  # JSON snapshot (string) of verify payload or meta
 
 class Subscription(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -98,4 +102,10 @@ class FailedEmail(db.Model):
     error = db.Column(db.Text)
     retry_count = db.Column(db.Integer, default=0)
     last_attempt_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class PaymentCallbackLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    payment_id = db.Column(db.Integer, db.ForeignKey('payment.id'), nullable=False)
+    raw_query = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
