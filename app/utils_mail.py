@@ -22,6 +22,7 @@ class MailtrapEmailClient:
             current_app.logger.warning('MAILTRAP_API_KEY not set; email sending disabled.')
 
     def send(self, subject: str, recipients: List[str], text: str, category: str = 'transactional', sender_name: str = 'BrandVoice Support'):  # noqa: D401
+        current_app.logger.info('Email attempt subject=%s to=%s category=%s', subject, ','.join(recipients), category)
         if not self._client:
             current_app.logger.warning('Mailtrap client not available; queuing email.')
             _persist_failed(subject, recipients, text, 'client_not_initialized')
@@ -43,13 +44,13 @@ class MailtrapEmailClient:
                 category=category,
             )
             resp = self._client.send(mail)
-            current_app.logger.info('Mailtrap sent subject=%s to=%s resp_id=%s', subject, ','.join(recipients), getattr(resp, 'message_ids', None))
+            current_app.logger.info('Email success subject=%s to=%s resp_id=%s', subject, ','.join(recipients), getattr(resp, 'message_ids', None))
             return True
         except NETWORK_ERRORS as e:
-            current_app.logger.error('Network error sending email subject=%s err=%s', subject, e)
+            current_app.logger.error('Email network error subject=%s to=%s err=%s', subject, ','.join(recipients), e)
             _persist_failed(subject, recipients, text, str(e))
         except Exception as e:  # noqa: BLE001
-            current_app.logger.exception('General email send failure subject=%s', subject)
+            current_app.logger.exception('Email general failure subject=%s to=%s', subject, ','.join(recipients))
             _persist_failed(subject, recipients, text, str(e))
         return False
 
@@ -81,10 +82,14 @@ def retry_failed_emails(limit: int = 20):
         try:
             ok = client.send(fe.subject, [fe.to_address], fe.body)
             if ok:
+                current_app.logger.info('FailedEmail retry success id=%s to=%s subject=%s attempts=%s', fe.id, fe.to_address, fe.subject, fe.retry_count)
                 db.session.delete(fe)
                 sent += 1
+            else:
+                current_app.logger.warning('FailedEmail retry still failing id=%s to=%s subject=%s attempts=%s', fe.id, fe.to_address, fe.subject, fe.retry_count)
         except Exception as e:  # noqa: BLE001
             fe.error = str(e)
+            current_app.logger.exception('FailedEmail retry exception id=%s to=%s subject=%s', fe.id, fe.to_address, fe.subject)
     db.session.commit()
     return sent
 
@@ -100,4 +105,9 @@ def get_mail_client() -> MailtrapEmailClient:
 
 def safe_send_mail(subject: str, recipients: List[str], body: str, category: str = 'transactional'):
     client = get_mail_client()
-    return client.send(subject, recipients, body, category=category)
+    ok = client.send(subject, recipients, body, category=category)
+    if ok:
+        current_app.logger.info('safe_send_mail dispatched subject=%s to=%s category=%s', subject, ','.join(recipients), category)
+    else:
+        current_app.logger.warning('safe_send_mail failed/queued subject=%s to=%s category=%s', subject, ','.join(recipients), category)
+    return ok
