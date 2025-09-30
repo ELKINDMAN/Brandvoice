@@ -33,6 +33,7 @@ class Flutterwave:
         payment_options: str = None,
         meta: dict | None = None,
         customizations: dict | None = None,
+        payment_plan: str | None = None,
     ):
         url = f'{self.base_url}/payments'
         headers = {'Authorization': f'Bearer {self.secret_key}', 'Content-Type': 'application/json'}
@@ -49,6 +50,8 @@ class Flutterwave:
             payload['meta'] = meta
         if customizations:
             payload['customizations'] = customizations
+        if payment_plan:
+            payload['payment_plan'] = payment_plan
         try:
             resp = requests.post(url, json=payload, headers=headers, timeout=30)
             resp.raise_for_status()
