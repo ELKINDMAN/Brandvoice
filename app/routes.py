@@ -110,7 +110,7 @@ def subscribe_pay():
     import requests
 
     # --- Currency & amount determination ---
-    base_amount_usd = 0.00  # base reference price in USD
+    base_amount_usd = 1.00  # base reference price in USD
 
     def geo_country() -> str | None:
         """Attempt to detect 2-letter country code with primary + fallback provider."""
@@ -162,7 +162,7 @@ def subscribe_pay():
 
     # Rough FX multipliers (TODO: replace with live FX service)
     if currency == 'NGN':
-        amount = round(base_amount_usd * 1600, 2)
+        amount = round(base_amount_usd * 20, 2)
     elif currency == 'GBP':
         amount = round(base_amount_usd * 0.78, 2)
     else:  # USD
