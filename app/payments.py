@@ -18,9 +18,10 @@ class Paystack:
         return resp.json()
 
 class Flutterwave:
-    def __init__(self, secret_key: str):
+    def __init__(self, secret_key: str, base_url: str | None = None):
         self.secret_key = secret_key
-        self.base_url = 'https://api.flutterwave.com/v3'
+        # Allow caller to inject base_url (fallback to env-configured default)
+        self.base_url = base_url or 'https://api.flutterwave.com/v3'
 
     def initialize_payment(
         self,
