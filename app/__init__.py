@@ -32,7 +32,8 @@ def create_app(config_object='config.DevConfig'):
     app.config['MAIL_USE_SSL'] = False
     app.config['MAIL_USERNAME'] = mail_username
     app.config['MAIL_PASSWORD'] = mail_password
-    app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('APP_EMAIL', 'no-reply@brandvoice.live')
+    # Explicit branded default sender
+    app.config['MAIL_DEFAULT_SENDER'] = ("BrandVoice Support", "support@brandvoice.live")
     if not mail_password:
         app.logger.warning('Mailtrap SMTP not fully configured: missing MAIL_PASSWORD env var.')
     # ------------------------------------------------------------------
