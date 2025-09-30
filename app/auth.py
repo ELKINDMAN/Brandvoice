@@ -66,6 +66,16 @@ def forgot_password():
         user.password_reset_sent_at = datetime.utcnow()
         db.session.commit()
         reset_link = url_for('auth.reset_password', token=token, _external=True)
+        canonical = current_app.config.get('CANONICAL_DOMAIN')
+        if canonical:
+            # Replace netloc if running in an internal environment (heuristic: localhost or 127).* 
+            try:
+                from urllib.parse import urlparse, urlunparse
+                parts = urlparse(reset_link)
+                if parts.hostname in {'localhost', '127.0.0.1'} or parts.hostname.endswith('.onrender.com'):
+                    reset_link = urlunparse((parts.scheme, canonical, parts.path, parts.params, parts.query, parts.fragment))
+            except Exception as _e:  # noqa: BLE001
+                current_app.logger.debug('Canonical URL rewrite skipped: %s', _e)
         # Pre-flight mail configuration sanity logging (masked where appropriate)
         mail_cfg = {
             'server': current_app.config.get('MAIL_SERVER'),

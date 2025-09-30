@@ -190,6 +190,15 @@ def subscribe_pay():
     tx_ref = str(uuid.uuid4())
     flw = Flutterwave(secret)
     redirect_url = url_for('main.payment_callback', _external=True)
+    canonical = current_app.config.get('CANONICAL_DOMAIN')
+    if canonical:
+        try:
+            from urllib.parse import urlparse, urlunparse
+            parts = urlparse(redirect_url)
+            if parts.hostname in {'localhost', '127.0.0.1'} or (parts.hostname and parts.hostname.endswith('.onrender.com')):
+                redirect_url = urlunparse((parts.scheme, canonical, parts.path, parts.params, parts.query, parts.fragment))
+        except Exception as _e:  # noqa: BLE001
+            current_app.logger.debug('Canonical redirect rewrite skipped: %s', _e)
     customer = {'email': current_user.email}
 
     current_app.logger.info('Initializing FLW payment tx_ref=%s currency=%s amount=%s country_detected=%s override=%s options=%s',
