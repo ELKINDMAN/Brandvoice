@@ -53,7 +53,7 @@ def business_profile():
         phone = request.form.get('phone')
         email = request.form.get('email')
         logo_file = request.files.get('logo')
-
+        location = request.form.get('location') or None
         logo_path_rel = profile.logo_path if profile else None
         if logo_file and logo_file.filename:
             uploads_dir = os.path.join(current_app.static_folder, 'uploads')
@@ -71,6 +71,7 @@ def business_profile():
                 phone=phone,
                 email=email,
                 logo_path=logo_path_rel,
+                location=location,
             )
             db.session.add(profile)
         else:
@@ -79,6 +80,7 @@ def business_profile():
             profile.phone = phone
             profile.email = email
             profile.logo_path = logo_path_rel
+            profile.location = location
 
         db.session.commit()
         flash('Business profile saved.', 'success')
@@ -92,6 +94,11 @@ def business_profile():
 def subscribe_pay():
     if current_user.is_premium:
         return redirect(url_for('main.dashboard'))
+    # Require business profile with location before payment
+    bp = BusinessProfile.query.filter_by(user_id=current_user.id).first()
+    if not bp or not bp.location:
+        flash('Please complete your business profile (including location) before subscribing.', 'warning')
+        return redirect(url_for('main.business_profile'))
     from .payments import Flutterwave
     secret = (current_app.config.get('FLW_SECRET_KEY') or '').strip()
     # Defensive validation & logging
@@ -107,11 +114,14 @@ def subscribe_pay():
         return redirect(url_for('main.dashboard'))
     if not secret.startswith('FLWSECK_'):
         current_app.logger.warning('FLW secret does not start with expected prefix; proceeding anyway. Masked=%s', _mask(secret))
-    # --- Fixed pricing (no IP geo) ---
-    from .pricing import resolve_currency
-    override_currency = request.args.get('currency', '').upper().strip() or None
-    currency, amount = resolve_currency(override_currency)
-    detected_country = None  # removed geo logic
+    # --- Pricing via business profile location ---
+    location_to_currency = {
+        'Nigeria': ('NGN', 500.00),
+        'United States': ('USD', 4.00),
+        'United Kingdom': ('GBP', 3.00),
+    }
+    currency, amount = location_to_currency.get(bp.location, ('USD', 4.00))
+    detected_country = bp.location  # for logging/meta
 
     # Plan mapping (recurring support if plan IDs present)
     plan_map = {
@@ -149,8 +159,8 @@ def subscribe_pay():
             current_app.logger.debug('Canonical redirect rewrite skipped: %s', _e)
     customer = {'email': current_user.email}
 
-    current_app.logger.info('Initializing FLW payment tx_ref=%s user_id=%s currency=%s amount=%s override=%s options=%s requested_plan=%s recurring=%s',
-                            tx_ref, current_user.id, currency, amount, bool(override_currency), payment_options, requested_plan, recurring)
+    current_app.logger.info('Initializing FLW payment tx_ref=%s user_id=%s location=%s currency=%s amount=%s options=%s requested_plan=%s recurring=%s',
+                            tx_ref, current_user.id, bp.location, currency, amount, payment_options, requested_plan, recurring)
     try:
         resp = flw.initialize_payment(
             tx_ref,

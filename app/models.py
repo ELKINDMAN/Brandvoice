@@ -44,6 +44,7 @@ class BusinessProfile(db.Model):
     phone = db.Column(db.String(50))
     email = db.Column(db.String(255))
     logo_path = db.Column(db.String(255))
+    location = db.Column(db.String(50))  # 'Nigeria', 'United States', 'United Kingdom'
 
 class Invoice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
