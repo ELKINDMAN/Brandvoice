@@ -198,7 +198,8 @@ def subscribe_pay():
             from urllib.parse import urlparse, urlunparse
             parts = urlparse(redirect_url)
             if parts.hostname in {'localhost', '127.0.0.1'} or (parts.hostname and parts.hostname.endswith('.onrender.com')):
-                redirect_url = urlunparse((parts.scheme, canonical, parts.path, parts.params, parts.query, parts.fragment))
+                # Force https for production canonical domain
+                redirect_url = urlunparse(('https', canonical, parts.path, parts.params, parts.query, parts.fragment))
         except Exception as _e:  # noqa: BLE001
             current_app.logger.debug('Canonical redirect rewrite skipped: %s', _e)
     customer = {'email': current_user.email}
@@ -228,7 +229,7 @@ def subscribe_pay():
             payment_plan=str(plan_id) if plan_id else None,
         )
     except Exception as e:
-        current_app.logger.exception('Flutterwave init failed for tx_ref=%s currency=%s amount=%s: %s', tx_ref, currency, amount, e)
+        current_app.logger.exception('FLW_INIT_ERROR tx_ref=%s currency=%s amount=%s user_id=%s err=%s', tx_ref, currency, amount, current_user.id, e)
         flash('Could not reach payment gateway. Please try again shortly.', 'error')
         return redirect(url_for('main.dashboard'))
 
