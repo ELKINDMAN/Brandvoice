@@ -89,3 +89,13 @@ class InvoiceItem(db.Model):
     price = db.Column(db.Float, default=0.0)
     quantity = db.Column(db.Integer, default=1)
     subtotal = db.Column(db.Float, default=0.0)
+
+class FailedEmail(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    to_address = db.Column(db.String(255), nullable=False)
+    subject = db.Column(db.String(255), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    error = db.Column(db.Text)
+    retry_count = db.Column(db.Integer, default=0)
+    last_attempt_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
