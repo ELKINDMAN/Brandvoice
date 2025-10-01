@@ -116,7 +116,7 @@ def subscribe_pay():
         current_app.logger.warning('FLW secret does not start with expected prefix; proceeding anyway. Masked=%s', _mask(secret))
     # --- Pricing via business profile location ---
     location_to_currency = {
-        'Nigeria': ('NGN', 500.00),
+        'Nigeria': ('NGN', 100.00),
         'United States': ('USD', 4.00),
         'United Kingdom': ('GBP', 3.00),
     }
