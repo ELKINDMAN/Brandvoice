@@ -243,11 +243,33 @@ def flutterwave_webhook():
     if sig != expected:
         current_app.logger.warning('Rejected webhook invalid hash provided=%s', sig)
         return jsonify({'status': 'invalid hash'}), 401
-
-    payload = request.get_json(silent=True) or {}
+    # Primary JSON parse (may fail if Content-Type not set correctly)
+    payload = request.get_json(silent=True)
+    parsed_via = 'request.get_json'
+    if not payload:
+        # Fallback manual parse
+        import json
+        try:
+            payload = json.loads(data_raw)
+            parsed_via = 'json.loads'
+        except Exception:
+            payload = {}
+            parsed_via = 'raw_unparsed'
+    if not isinstance(payload, dict):
+        payload = {}
     event = payload.get('event') or payload.get('status')
     flw_data = payload.get('data') or {}
     tx_ref = flw_data.get('tx_ref') or flw_data.get('txRef')
+    # Regex fallback for tx_ref if not found
+    if not tx_ref and data_raw:
+        try:
+            import re
+            m = re.search(r'"tx_ref"\s*:\s*"([^"]+)"', data_raw)
+            if m:
+                tx_ref = m.group(1)
+                current_app.logger.info('Webhook tx_ref recovered via regex fallback parse_method=%s tx_ref=%s', parsed_via, tx_ref)
+        except Exception:
+            pass
 
     # Persist raw webhook log for auditing
     try:
@@ -258,8 +280,8 @@ def flutterwave_webhook():
     except Exception as e:  # noqa: BLE001
         current_app.logger.warning('Failed to persist WebhookLog tx_ref=%s err=%s', tx_ref, e)
     if not tx_ref:
-        current_app.logger.info('Webhook missing tx_ref; event=%s raw=%s', event, data_raw[:300])
-        return jsonify({'status': 'ignored'}), 200
+        current_app.logger.info('Webhook missing tx_ref; parse_method=%s event=%s raw_snippet=%s', parsed_via, event, data_raw[:300])
+        return jsonify({'status': 'ignored', 'reason': 'no_tx_ref'}), 200
 
     payment = Payment.query.filter_by(tx_ref=tx_ref).first()
     if not payment:
