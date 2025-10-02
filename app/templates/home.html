@@ -4,10 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BrandVoice | Home</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/favicon.svg') }}">
+  <meta name="theme-color" content="#1E64F0">
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 h-screen flex items-center justify-center">
   <div class="text-center">
+    <div class="mx-auto mb-6 w-20 h-20 rounded-xl flex items-center justify-center shadow bg-white ring-1 ring-blue-100">
+      <img src="{{ url_for('static', filename='img/favicon.svg') }}" alt="BrandVoice" class="w-12 h-12"/>
+    </div>
     <h1 class="text-4xl font-bold text-gray-800 mb-6">Build Professional Invoices<br>in Seconds</h1>
     <h5 class="text-gray-600 mb-6">make your brand more standard and professional</h5>
     <a href="{{ url_for('auth.login') }}" class="px-6 py-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition">Login</a>
