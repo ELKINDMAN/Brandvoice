@@ -5,14 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BrandVoice | Home</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/brandvoice-icon.png') }}">
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 h-screen flex items-center justify-center">
-  <div class="text-center">
-    <h1 class="text-4xl font-bold text-gray-800 mb-6">Build Professional Invoices<br>in Seconds</h1>
-    <h5 class="text-gray-600 mb-6">make your brand more standard and professional</h5>
-    <a href="{{ url_for('auth.login') }}" class="px-6 py-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition">Login</a>
-    <a href="{{ url_for('auth.register') }}" class="ml-3 px-6 py-3 bg-gray-800 text-white rounded-lg shadow-lg hover:bg-gray-900 transition">Register</a>
-  </div>
+<body class="min-h-screen flex flex-col bg-gradient-to-br from-purple-100 via-indigo-50 to-pink-100">
+  
+  <!-- Top Nav -->
+  <header class="w-full flex justify-between items-center p-4">
+    <div class="px-4 py-2 bg-white rounded-full shadow text-gray-800 font-semibold">
+      BrandVoice
+    </div>
+    <a href="{{ url_for('auth.register') }}" 
+       class="px-4 py-2 rounded-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white font-medium shadow hover:opacity-90 transition">
+      Get Started
+    </a>
+  </header>
+
+  <!-- Main Hero -->
+  <main class="flex flex-col items-center justify-center flex-grow text-center px-4">
+    <h1 class="text-4xl md:text-5xl font-extrabold text-gray-800 mb-4">
+      Empower Your Brand with <span class="text-purple-600">Professional Invoices</span>
+    </h1>
+    <p class="text-gray-600 text-lg mb-6">
+      Create invoices & thank-you notes in seconds. Stand out and look more professional.
+    </p>
+    
+    <div class="flex gap-4">
+      <a href="{{ url_for('auth.login') }}" 
+         class="px-6 py-3 rounded-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white font-semibold shadow hover:opacity-90 transition">
+        Login
+      </a>
+      <a href="{{ url_for('auth.register') }}" 
+         class="px-6 py-3 rounded-full bg-gray-800 text-white font-semibold shadow hover:bg-gray-900 transition">
+        Register
+      </a>
+    </div>
+  </main>
+
 </body>
 </html>
