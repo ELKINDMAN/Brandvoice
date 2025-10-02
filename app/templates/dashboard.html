@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - BrandVoice</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/favicon.svg') }}">
+  <meta name="theme-color" content="#1E64F0">
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -22,7 +25,10 @@
   </div>
   <nav class="bg-white shadow">
     <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
-      <div class="text-lg font-semibold">BrandVoice</div>
+      <div class="flex items-center gap-2">
+        <img src="{{ url_for('static', filename='img/favicon.svg') }}" alt="BrandVoice" class="w-8 h-8"/>
+        <span class="text-lg font-semibold">BrandVoice</span>
+      </div>
       <div>
         <a href="{{ url_for('auth.logout') }}" class="text-red-600">Logout</a>
       </div>
