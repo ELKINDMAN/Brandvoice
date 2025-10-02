@@ -306,7 +306,17 @@ def flutterwave_webhook():
         try:
             stub_amount = float(flw_data.get('amount') or 0)
             stub_currency = flw_data.get('currency') or 'UNKNOWN'
-            payment = Payment(user_id=flw_data.get('meta', {}).get('user_id') or 0,
+            # Flutterwave sometimes supplies meta at flw_data['meta'] OR top-level 'meta_data' / 'meta'
+            meta_obj = flw_data.get('meta') or (payload.get('meta_data') if isinstance(payload, dict) else None) or payload.get('meta') if isinstance(payload, dict) else None
+            user_id_from_meta = 0
+            try:
+                if meta_obj and isinstance(meta_obj, dict):
+                    raw_uid = meta_obj.get('user_id')
+                    if raw_uid is not None:
+                        user_id_from_meta = int(str(raw_uid)) if str(raw_uid).isdigit() else user_id_from_meta
+            except Exception:
+                pass
+            payment = Payment(user_id=user_id_from_meta or 0,
                               tx_ref=tx_ref,
                               amount=stub_amount,
                               currency=stub_currency,
@@ -354,6 +364,18 @@ def flutterwave_webhook():
         return jsonify({'status': 'mismatch'}), 400
 
     if v_status == 'successful' and event in {'charge.completed', 'successful'}:
+        # Attempt to backfill user_id if missing (0) using top-level meta_data
+        if not payment.user_id:
+            try:
+                meta_fallback = flw_data.get('meta') or payload.get('meta_data') or payload.get('meta') if isinstance(payload, dict) else None
+                if meta_fallback and isinstance(meta_fallback, dict):
+                    raw_uid = meta_fallback.get('user_id')
+                    if raw_uid and str(raw_uid).isdigit():
+                        payment.user_id = int(str(raw_uid))
+                        db.session.commit()
+                        current_app.logger.info('Backfilled payment.user_id from meta tx_ref=%s user_id=%s', tx_ref, payment.user_id)
+            except Exception:
+                current_app.logger.debug('Meta backfill skipped tx_ref=%s', tx_ref)
         user = User.query.get(payment.user_id)
         if not user:
             current_app.logger.error('Webhook successful but user missing payment_id=%s tx_ref=%s', payment.id, tx_ref)
