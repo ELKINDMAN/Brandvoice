@@ -234,14 +234,31 @@ def payment_callback():
 @main_bp.route('/webhook/flutterwave', methods=['POST'])
 def flutterwave_webhook():
     from flask import jsonify
+    # --- EARLY VISIBILITY LOGGING ---
+    # Capture raw body & key request metadata BEFORE any branching so we can
+    # see in Render / console logs that the webhook actually hit the server.
+    # (Truncate body to avoid logging large / sensitive payloads.)
     data_raw = request.get_data(cache=False, as_text=True)
+    try:
+        remote_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        ua = request.headers.get('User-Agent', '')
+        clen = request.headers.get('Content-Length') or len(data_raw)
+        current_app.logger.info(
+            'Webhook HIT ip=%s ua="%s" path=/webhook/flutterwave content_length=%s snippet=%s',
+            remote_ip,
+            ua[:80],  # trim very long user-agents
+            clen,
+            (data_raw[:400] + ('...' if len(data_raw) > 400 else ''))
+        )
+    except Exception as _log_e:  # noqa: BLE001
+        current_app.logger.debug('Webhook pre-log skipped err=%s', _log_e)
     sig = request.headers.get('verif-hash') or request.headers.get('Verif-Hash')
     expected = (current_app.config.get('FLW_HASH') or '').strip()
     if not expected:
         current_app.logger.error('Webhook received but FLW_HASH not set; rejecting for safety.')
         return jsonify({'status': 'misconfigured'}), 500
     if sig != expected:
-        current_app.logger.warning('Rejected webhook invalid hash provided=%s', sig)
+        current_app.logger.warning('Rejected webhook invalid hash provided=%s (len=%s)', sig, len(sig) if sig else 0)
         return jsonify({'status': 'invalid hash'}), 401
     # Primary JSON parse (may fail if Content-Type not set correctly)
     payload = request.get_json(silent=True)
