@@ -3,7 +3,7 @@ from typing import Tuple, Dict
 
 # Fixed pricing per currency (amounts as floats)
 FIXED_PRICING: Dict[str, float] = {
-    'NGN': 1400.00,
+    'NGN': 1550.00,
     'USD': 4.00,
     'GBP': 3.00,
 }
