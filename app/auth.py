@@ -53,8 +53,9 @@ def forgot_password():
         email = (request.form.get('email') or '').strip().lower()
         user = User.query.filter_by(email=email).first()
         if not user:
-            current_app.logger.info('Password reset requested for non-existent email=%s (now returning error)', email)
-            flash('Email not found. Please register or try a different address.', 'error')
+            # Explicit enumeration per current product requirement:
+            current_app.logger.info('Password reset requested for non-existent email=%s', email)
+            flash('Email does not exist', 'error')
             return redirect(url_for('auth.forgot_password'))
         token = secrets.token_urlsafe(48)
         user.password_reset_token = token
@@ -71,13 +72,13 @@ def forgot_password():
             except Exception as _e:  # noqa: BLE001
                 current_app.logger.debug('Canonical URL rewrite skipped: %s', _e)
         body_txt = f'Click the link to reset your password (expires in {RESET_EXP_MINUTES} minutes): {reset_link}'
+        # Attempt to send (we still log failure internally but always show success if user exists)
         ok = safe_send_mail('Password Reset Request', [email], body_txt, category='password_reset')
         if ok:
             current_app.logger.info('Password reset email dispatched user_id=%s token_prefix=%s', user.id, token[:8])
-            flash('Email has been sent to your email', 'success')
         else:
-            current_app.logger.warning('Password reset email queued (send failed) user_id=%s token_prefix=%s', user.id, token[:8])
-            flash('Email has been queued due to a temporary issue. Please check later.', 'warning')
+            current_app.logger.warning('Password reset email send failed (queued) user_id=%s token_prefix=%s', user.id, token[:8])
+        flash('Password reset email sent', 'success')
         return redirect(url_for('auth.forgot_password'))
     return render_template('forgot_password.html')
 
