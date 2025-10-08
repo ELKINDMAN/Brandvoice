@@ -21,13 +21,13 @@ cp instance/brandvoice.db backups/brandvoice-$(date +%Y%m%d%H%M%S).db
 Set up a `.env` (example — do NOT commit this file):
 ```text
 # .env
-PG_USER=postgres.cttasemogybrglcltgil
-PG_PASSWORD=KINDsupabase002
-PG_HOST=aws-1-us-east-2.pooler.supabase.com
+PG_USER=your_postgres_user
+PG_PASSWORD=your_secure_password
+PG_HOST=your_postgres_host
 PG_PORT=5432
 PG_DB=postgres
 # Or full URL (preferred):
-DATABASE_URL=postgresql+psycopg2://$PG_USER:$PG_PASSWORD@$PG_HOST:$PG_PORT/$PG_DB?sslmode=require
+DATABASE_URL=postgresql+psycopg://your_user:your_password@your_host:5432/your_db?sslmode=require
 ```
 
 Connection check (git-bash)
@@ -43,7 +43,7 @@ Option A — recommended: Alembic-first + Python transfer (keeps migrations auth
 # from repo root, using git-bash
 export FLASK_APP=app.py
 export FLASK_ENV=production
-export DATABASE_URL="postgresql+psycopg2://$PG_USER:$PG_PASSWORD@$PG_HOST:$PG_PORT/$PG_DB?sslmode=require"
+export DATABASE_URL="postgresql+psycopg://your_user:your_password@your_host:5432/your_db?sslmode=require"
 python -m flask db upgrade
 ```
 3. Dry-run the transfer script (transfers a tiny sample):
