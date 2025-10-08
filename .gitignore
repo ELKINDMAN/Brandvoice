@@ -4,6 +4,7 @@ labs
 env/
 venv/
 .env
+*.env*
 
 # Keep static folder but ignore uploaded files
 static/uploads/*
