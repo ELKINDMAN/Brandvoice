@@ -1,1 +1,10 @@
-db-migration-runbook.md
+__pycache__
+labs
+.venv/
+env/
+venv/
+.env
+
+# Keep static folder but ignore uploaded files
+static/uploads/*
+!static/uploads/.gitkeep
