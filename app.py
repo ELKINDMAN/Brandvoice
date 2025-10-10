@@ -18,4 +18,4 @@ if __name__ == "__main__":
     if os.getenv('RENDER'):  # Render sets this environment variable
         run_migrations_on_startup()
     
-    app.run(host="0.0.0.0", port=8000, debug=True)
+    app.run(host="0.0.0.0", port=8000, debug=False)
