@@ -3,12 +3,12 @@ from typing import Tuple, Dict
 
 # Fixed pricing per currency (amounts as floats)
 FIXED_PRICING: Dict[str, float] = {
-    'NGN': 1550.00,
+    'NGN': 1000.00,
     'USD': 4.00,
     'GBP': 3.00,
 }
 
-DEFAULT_CURRENCY = 'USD'
+DEFAULT_CURRENCY = 'NGN'
 
 ALLOWED_CURRENCIES = set(FIXED_PRICING.keys())
 
